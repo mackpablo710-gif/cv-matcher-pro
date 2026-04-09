@@ -767,9 +767,18 @@ const CreditsBanner = ({ credits, onBuy }: { credits: number; onBuy: () => void 
 
 // ─── Packages Modal ───────────────────────────────────────────────────────────
 
-const PackagesModal = ({ onClose }: { onClose: () => void }) => {
+const PackagesModal = ({ onClose, userId, currentCredits, onPurchased }: {
+  onClose: () => void; userId?: string; currentCredits?: number; onPurchased?: (newCredits: number) => void;
+}) => {
   const [packages, setPackages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<any>(null);
+  const [step, setStep] = useState<'list' | 'checkout' | 'success'>('list');
+  const [processing, setProcessing] = useState(false);
+  const [cardName, setCardName] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
 
   useEffect(() => {
     supabase.from('packages').select('*').eq('active', true).order('sort_order').then(({ data }) => {
@@ -778,33 +787,123 @@ const PackagesModal = ({ onClose }: { onClose: () => void }) => {
     });
   }, []);
 
+  const handleSelect = (pkg: any) => { setSelected(pkg); setStep('checkout'); };
+
+  const handlePay = async () => {
+    if (!selected || !userId) return;
+    setProcessing(true);
+    // Simulate payment processing
+    await new Promise(r => setTimeout(r, 1800));
+    try {
+      await supabase.from('purchases').insert({
+        user_id: userId, package_id: selected.id,
+        credits: selected.credits, price: selected.price,
+        note: 'Compra online',
+      });
+      const newCredits = (currentCredits || 0) + selected.credits;
+      await supabase.from('profiles').update({ credits: newCredits }).eq('id', userId);
+      if (onPurchased) onPurchased(newCredits);
+      setStep('success');
+    } catch (e) { console.error(e); }
+    finally { setProcessing(false); }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden">
         <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
-          <div><h2 className="text-xl font-black text-zinc-900">Paquetes de adaptaciones</h2><p className="text-sm text-zinc-500 mt-0.5">Elige el plan que mejor se adapte a ti</p></div>
+          <div>
+            <h2 className="text-xl font-black text-zinc-900">
+              {step === 'list' ? 'Paquetes de adaptaciones' : step === 'checkout' ? 'Datos de pago' : '¡Compra exitosa!'}
+            </h2>
+            <p className="text-sm text-zinc-500 mt-0.5">
+              {step === 'list' ? 'Elige el plan que mejor se adapte a ti' : step === 'checkout' ? `${selected?.name} · ${formatCLP(selected?.price)}` : `+${selected?.credits} adaptaciones agregadas`}
+            </p>
+          </div>
           <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-zinc-100"><X className="w-5 h-5 text-zinc-500" /></button>
         </div>
-        <div className="p-6 space-y-4">
-          {loading ? <div className="text-center py-8 text-zinc-400">Cargando...</div> : packages.map((pkg, i) => (
-            <div key={pkg.id} className={cn('p-5 rounded-2xl border-2 transition-all', i === 1 ? 'border-indigo-600 bg-indigo-50/50' : 'border-zinc-100')}>
-              {i === 1 && <div className="mb-2"><Badge color="indigo">Más popular</Badge></div>}
-              <div className="flex items-center justify-between">
+
+        <AnimatePresence mode="wait">
+          {step === 'list' && (
+            <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-6 space-y-4">
+              {loading ? <div className="text-center py-8 text-zinc-400">Cargando...</div> : packages.map((pkg, i) => (
+                <button key={pkg.id} onClick={() => handleSelect(pkg)}
+                  className={cn('w-full p-5 rounded-2xl border-2 transition-all text-left hover:border-indigo-400 hover:shadow-md', i === 1 ? 'border-indigo-600 bg-indigo-50/50' : 'border-zinc-100')}>
+                  {i === 1 && <div className="mb-2"><Badge color="indigo">Más popular</Badge></div>}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-black text-zinc-900 text-lg">{pkg.name}</p>
+                      <p className="text-sm text-zinc-500">{pkg.credits} adaptaciones completas</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-black text-zinc-900">{formatCLP(pkg.price)}</p>
+                      <p className="text-xs text-zinc-400">{formatCLP(Math.round(pkg.price / pkg.credits))} / adaptación</p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </motion.div>
+          )}
+
+          {step === 'checkout' && (
+            <motion.div key="checkout" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-6 space-y-4">
+              <div className="p-4 bg-indigo-50 rounded-2xl flex items-center justify-between">
                 <div>
-                  <p className="font-black text-zinc-900 text-lg">{pkg.name}</p>
-                  <p className="text-sm text-zinc-500">{pkg.credits} adaptaciones completas</p>
+                  <p className="font-black text-zinc-900">{selected?.name}</p>
+                  <p className="text-sm text-zinc-500">{selected?.credits} adaptaciones</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-2xl font-black text-zinc-900">{formatCLP(pkg.price)}</p>
-                  <p className="text-xs text-zinc-400">{formatCLP(Math.round(pkg.price / pkg.credits))} / adaptación</p>
+                <p className="text-2xl font-black text-indigo-600">{formatCLP(selected?.price)}</p>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Nombre en la tarjeta</label>
+                  <input value={cardName} onChange={e => setCardName(e.target.value)} placeholder="Juan Pérez"
+                    className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-indigo-400" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Número de tarjeta</label>
+                  <input value={cardNumber} onChange={e => setCardNumber(e.target.value.replace(/\D/g,'').slice(0,16).replace(/(.{4})/g,'$1 ').trim())} placeholder="0000 0000 0000 0000" maxLength={19}
+                    className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-indigo-400 font-mono" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Vencimiento</label>
+                    <input value={cardExpiry} onChange={e => setCardExpiry(e.target.value.replace(/\D/g,'').slice(0,4).replace(/(.{2})/,'$1/'))} placeholder="MM/AA" maxLength={5}
+                      className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-indigo-400" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">CVV</label>
+                    <input value={cardCvv} onChange={e => setCardCvv(e.target.value.replace(/\D/g,'').slice(0,4))} placeholder="123" maxLength={4}
+                      className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-indigo-400" />
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-          <div className="pt-2 text-center">
-            <p className="text-sm text-zinc-400">Para comprar, contacta al administrador o realiza el pago y envía el comprobante.</p>
-          </div>
-        </div>
+              <div className="flex gap-3 pt-2">
+                <Button variant="outline" onClick={() => setStep('list')} disabled={processing}><ChevronLeft className="w-4 h-4" /> Volver</Button>
+                <Button className="flex-1" onClick={handlePay} loading={processing}
+                  disabled={!cardName || cardNumber.replace(/\s/g,'').length < 16 || cardExpiry.length < 5 || cardCvv.length < 3}>
+                  <CreditCard className="w-4 h-4" /> {processing ? 'Procesando...' : `Pagar ${formatCLP(selected?.price)}`}
+                </Button>
+              </div>
+              <p className="text-xs text-zinc-400 text-center flex items-center justify-center gap-1">
+                <Shield className="w-3 h-3" /> Pago seguro simulado — integración real próximamente
+              </p>
+            </motion.div>
+          )}
+
+          {step === 'success' && (
+            <motion.div key="success" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="p-8 text-center space-y-4">
+              <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-zinc-900">¡Pago confirmado!</h3>
+                <p className="text-zinc-500 mt-1">Se agregaron <strong className="text-indigo-600">{selected?.credits} adaptaciones</strong> a tu cuenta</p>
+              </div>
+              <Button className="w-full" onClick={onClose}><Check className="w-4 h-4" /> Continuar</Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </div>
   );
@@ -965,9 +1064,9 @@ const CVDocumentEditor = ({ cv, onChange }: { cv: any; onChange: (cv: any) => vo
             <div className="space-y-5">
               {cv.experience.map((exp: any, i: number) => (
                 <div key={i}>
-                  <div className="flex items-start justify-between gap-4 mb-1">
-                    <DocField value={exp.position || ''} onChange={v => upd(['experience', String(i), 'position'], v)} className="font-bold text-zinc-900 flex-1" placeholder="Cargo" />
-                    <div className="flex items-center gap-1 text-zinc-500 shrink-0">
+                  <div className="mb-1">
+                    <DocField value={exp.position || ''} onChange={v => upd(['experience', String(i), 'position'], v)} className="font-bold text-zinc-900 w-full text-base" placeholder="Cargo" />
+                    <div className="flex flex-wrap items-center gap-1 text-zinc-500 mt-0.5">
                       <DocField value={exp.company || ''} onChange={v => upd(['experience', String(i), 'company'], v)} className="text-zinc-600" placeholder="Empresa" />
                       <span>|</span>
                       <DocField value={exp.period || ''} onChange={v => upd(['experience', String(i), 'period'], v)} className="text-zinc-500" placeholder="Período" />
@@ -999,13 +1098,23 @@ const CVDocumentEditor = ({ cv, onChange }: { cv: any; onChange: (cv: any) => vo
           <DocSec title="Educación">
             <div className="space-y-3">
               {cv.education.map((edu: any, i: number) => (
-                <div key={i} className="flex items-start justify-between gap-4">
-                  <DocField value={edu.degree || ''} onChange={v => upd(['education', String(i), 'degree'], v)} className="font-bold text-zinc-900 flex-1" placeholder="Título" />
-                  <div className="flex items-center gap-1 text-zinc-500 shrink-0">
+                <div key={i}>
+                  <DocField value={edu.degree || ''} onChange={v => upd(['education', String(i), 'degree'], v)} className="font-bold text-zinc-900 w-full text-base" placeholder="Título" />
+                  <div className="flex flex-wrap items-center gap-1 text-zinc-500 mt-0.5">
                     <DocField value={edu.institution || ''} onChange={v => upd(['education', String(i), 'institution'], v)} className="text-zinc-600" placeholder="Institución" />
                     <span>|</span>
                     <DocField value={edu.period || ''} onChange={v => upd(['education', String(i), 'period'], v)} className="text-zinc-500" placeholder="Período" />
                   </div>
+                  {edu.description?.length > 0 && (
+                    <div className="mt-1 space-y-1 pl-3">
+                      {edu.description.map((d: string, j: number) => (
+                        <div key={j} className="flex items-start gap-2 group">
+                          <span className="text-indigo-400 mt-0.5 shrink-0">•</span>
+                          <DocField value={d} onChange={v => { const a = [...edu.description]; a[j] = v; upd(['education', String(i), 'description'], a); }} multiline className="flex-1 text-zinc-600" placeholder="Descripción..." />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1483,13 +1592,14 @@ export default function App() {
       setAuthLoading(false);
       if (session?.user) loadProfile(session.user.id);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
         loadProfile(session.user.id);
-        // Update last_active_at
         supabase.from('profiles').update({ last_active_at: new Date().toISOString() }).eq('id', session.user.id);
+        // On email confirmation, go straight to dashboard
+        if (event === 'SIGNED_IN') setView('dashboard');
       }
     });
     return () => subscription.unsubscribe();
@@ -1553,8 +1663,9 @@ export default function App() {
       setInitialMatch(match);
       // Save initial match record immediately (no final_score yet)
       if (user) {
+        const detectedTitle = match?.job_title || getJobTitle(jdText);
         const { data } = await supabase.from('adaptations').insert({
-          user_id: user.id, job_title: getJobTitle(jdText), job_description: jdText,
+          user_id: user.id, job_title: detectedTitle, job_description: jdText,
           cv_text: cvText, language, initial_match: match,
           initial_score: match?.score || 0, final_score: 0,
         }).select('id').single();
@@ -1597,7 +1708,7 @@ export default function App() {
           }).eq('id', initialMatchRecordId.current);
         } else {
           await supabase.from('adaptations').insert({
-            user_id: user.id, job_title: getJobTitle(jdText), job_description: jdText,
+            user_id: user.id, job_title: initialMatch?.job_title || getJobTitle(jdText), job_description: jdText,
             cv_text: cvText, language, initial_match: initialMatch,
             initial_score: initialMatch?.score || 0, final_score: finalScore,
             adapted_content: normalized, analysis: result?.analisis || null,
@@ -1896,7 +2007,8 @@ export default function App() {
       {showCVManager && user && (
         <MasterCVManager userId={user.id} onSelect={(cv) => { setCvText(cv.content); setShowCVManager(false); }} onClose={() => setShowCVManager(false)} />
       )}
-      {showPackages && <PackagesModal onClose={() => setShowPackages(false)} />}
+      {showPackages && <PackagesModal onClose={() => setShowPackages(false)} userId={user?.id} currentCredits={credits}
+        onPurchased={(newCredits) => { setProfile((p: any) => ({ ...p, credits: newCredits })); }} />}
       {showAdmin && isAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
     </div>
   );

@@ -34,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         const r = await withRetry(() => ai.models.generateContent({
           model,
-          contents: `Analiza la coincidencia entre el CV y la Job Description.\n\nCV:\n${cvText}\n\nJob Description:\n${jdText}\n\nDevuelve SOLO un JSON válido con esta estructura exacta:\n{\n  "score": 0,\n  "summary": "",\n  "key_matches": [],\n  "key_gaps": []\n}\n\nReglas:\n1. score: número entero 0-100\n2. key_matches y key_gaps: arrays de strings (máx 6 items cada uno)\n3. summary: texto breve y claro en español\n4. No uses markdown, solo JSON`,
+          contents: `Analiza la coincidencia entre el CV y la Job Description.\n\nCV:\n${cvText}\n\nJob Description:\n${jdText}\n\nDevuelve SOLO un JSON válido con esta estructura exacta:\n{\n  "score": 0,\n  "job_title": "",\n  "summary": "",\n  "key_matches": [],\n  "key_gaps": []\n}\n\nReglas:\n1. score: número entero 0-100, sé riguroso y realista\n2. job_title: extrae el título del cargo de la Job Description (máx 60 caracteres)\n3. key_matches y key_gaps: arrays de strings (máx 6 items cada uno)\n4. summary: texto breve y claro en español con tildes correctas (á,é,í,ó,ú,ñ)\n5. USA SIEMPRE tildes y caracteres especiales correctos del español\n6. No uses markdown, solo JSON`,
           config: { responseMimeType: 'application/json', temperature: 0.2 },
         }));
         text = r.text || ''; break;
@@ -47,6 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const parsed = safeParseJSON(text);
     res.json({
       score: Math.max(0, Math.min(100, Math.round(Number(parsed?.score ?? 0)))),
+      job_title: parsed?.job_title || '',
       summary: parsed?.summary || '',
       key_matches: Array.isArray(parsed?.key_matches) ? parsed.key_matches : [],
       key_gaps: Array.isArray(parsed?.key_gaps) ? parsed.key_gaps : [],
