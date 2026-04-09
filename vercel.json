@@ -1,0 +1,11 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/api/extract-pdf", "destination": "/api/extract-pdf" },
+    { "source": "/api/initial-match", "destination": "/api/initial-match" },
+    { "source": "/api/adapt-cv", "destination": "/api/adapt-cv" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

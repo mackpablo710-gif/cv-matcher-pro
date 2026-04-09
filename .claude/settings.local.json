@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(netstat -ano)",
+      "Bash(powershell \"Get-Process -Id 20556 | Select-Object MainWindowTitle, Path, CommandLine\")",
+      "Bash(wmic process:*)",
+      "Bash(powershell \"Get-WmiObject Win32_Process -Filter ''ProcessId=20556'' | Select-Object CommandLine\")",
+      "Bash(find \"C:/Users/macke/Downloads/cv-matcher-ai \\(5\\)\" -maxdepth 3 -not -path \"*/node_modules/*\" -not -path \"*/.git/*\")",
+      "Bash(powershell \"Get-Clipboard\")",
+      "Bash(npm install:*)",
+      "Bash(powershell -Command \":*)",
+      "Bash(node setup-db.mjs)",
+      "Bash(node -e \":*)",
+      "Bash(pkill -f \"tsx server.ts\")",
+      "Bash(pkill -f \"node.*server\")",
+      "Bash(curl -s -X POST http://localhost:3011/api/initial-match -H \"Content-Type: application/json\" -d '{\"\"cvText\"\":\"\"Desarrollador React 3 años experiencia JavaScript TypeScript\"\",\"\"jdText\"\":\"\"Buscamos desarrollador frontend React senior con TypeScript\"\"}')"
+    ]
+  }
+}
