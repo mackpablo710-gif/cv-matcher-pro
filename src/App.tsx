@@ -933,7 +933,7 @@ const Dashboard = ({ userId, credits, onLoadAdaptation, onNew, onBuy }: {
     setLoading(false);
   };
 
-  const avgScore = items.length ? Math.round(items.reduce((a, i) => a + (i.final_score || 0), 0) / items.length) : 0;
+  const avgScore = items.length ? Math.round(items.reduce((a, i) => a + (i.initial_score || 0), 0) / items.length) : 0;
   const bestScore = items.length ? Math.max(...items.map(i => i.final_score || 0)) : 0;
   const initialMatches = items.length; // every record = 1 initial match
   const fullAdaptations = items.filter(i => i.final_score > 0).length;
@@ -945,7 +945,7 @@ const Dashboard = ({ userId, credits, onLoadAdaptation, onNew, onBuy }: {
           {[
             { label: 'Matches iniciales', value: initialMatches, icon: Target, color: 'text-blue-600', bg: 'bg-blue-50' },
             { label: 'CVs optimizados', value: fullAdaptations, icon: Zap, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-            { label: 'Score promedio', value: fullAdaptations > 0 ? `${avgScore}%` : '—', icon: BarChart2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+            { label: 'Score promedio', value: initialMatches > 0 ? `${avgScore}%` : '—', icon: BarChart2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
             { label: 'Mejor match', value: bestScore > 0 ? `${bestScore}%` : '—', icon: Star, color: 'text-amber-600', bg: 'bg-amber-50' },
           ].map((stat, i) => (
             <Card key={i} className="p-5">
@@ -1250,6 +1250,17 @@ const ExportStep = ({ cv, analysis, language, onBack }: { cv: any; analysis: any
           </div>
           <ScoreRing score={analysis?.match_score_adapted || 0} size={100} />
         </div>
+        {analysis?.cannot_improve && analysis?.missing_mandatory?.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-amber-100 bg-amber-50 rounded-xl p-4">
+            <p className="text-sm font-bold text-amber-800 mb-2">⚠️ No es posible lograr una mayor adaptación</p>
+            <p className="text-xs text-amber-700 mb-2">Estos requisitos obligatorios de la oferta no se pueden cubrir sin inventar información:</p>
+            <ul className="space-y-1">
+              {analysis.missing_mandatory.map((req: string, i: number) => (
+                <li key={i} className="text-xs text-amber-700 flex items-start gap-1.5"><span className="shrink-0">•</span>{req}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         {analysis?.keywords_usadas?.length > 0 && (
           <div className="mt-4 pt-4 border-t border-zinc-100">
             <p className="text-xs font-black uppercase tracking-widest text-zinc-400 mb-2">Keywords incorporadas</p>
@@ -1565,6 +1576,7 @@ export default function App() {
   const [profile, setProfile] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [view, setView] = useState<'dashboard' | 'workflow'>('dashboard');
+  const alreadyLoggedInRef = useRef(false);
 
   const [step, setStep] = useState(0);
   const [cvText, setCvText] = useState('');
@@ -1590,7 +1602,10 @@ export default function App() {
       setSession(session);
       setUser(session?.user ?? null);
       setAuthLoading(false);
-      if (session?.user) loadProfile(session.user.id);
+      if (session?.user) {
+        alreadyLoggedInRef.current = true;
+        loadProfile(session.user.id);
+      }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
@@ -1598,8 +1613,11 @@ export default function App() {
       if (session?.user) {
         loadProfile(session.user.id);
         supabase.from('profiles').update({ last_active_at: new Date().toISOString() }).eq('id', session.user.id);
-        // On email confirmation, go straight to dashboard
-        if (event === 'SIGNED_IN') setView('dashboard');
+        // Only redirect to dashboard on genuine new sign-in (not on tab-focus session restore)
+        if (event === 'SIGNED_IN' && !alreadyLoggedInRef.current) setView('dashboard');
+        alreadyLoggedInRef.current = true;
+      } else {
+        alreadyLoggedInRef.current = false;
       }
     });
     return () => subscription.unsubscribe();
