@@ -10,10 +10,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Auth helpers
+const APP_URL = import.meta.env.VITE_APP_URL || 'https://cv-matcher-pro.vercel.app';
+
 export const signInWithGoogle = () =>
   supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo: window.location.origin },
+    options: { redirectTo: APP_URL },
   });
 
 export const signInWithEmail = (email: string, password: string) =>
@@ -25,7 +27,7 @@ export const signUpWithEmail = (email: string, password: string, name: string) =
     password,
     options: {
       data: { full_name: name },
-      emailRedirectTo: window.location.origin,
+      emailRedirectTo: APP_URL,
     },
   });
 
