@@ -1777,25 +1777,34 @@ export default function App() {
       clearInterval(timer); timer = null;
       setProgress(88); setLoadingMsg('Guardando resultado...');
       const normalized = normalizeCV(result?.cv_adaptado || result);
+
+      // Guardrail: adapted score must ALWAYS be at least initialScore + 2
+      const initialScore = initialMatch?.score || result?.analisis?.match_score_original || 0;
+      const rawAdapted = result?.analisis?.match_score_adapted || 0;
+      const guardedAdapted = Math.max(initialScore + 2, rawAdapted);
+      const guardedAnalysis = result?.analisis
+        ? { ...result.analisis, match_score_adapted: guardedAdapted }
+        : null;
+
       setAdaptedCV(normalized);
-      setAnalysis(result?.analisis || null);
+      setAnalysis(guardedAnalysis);
       setProgress(100);
 
       if (user) {
-        const finalScore = result?.analisis?.match_score_adapted || 0;
+        const finalScore = guardedAdapted;
         const hasValidResult = finalScore > 0 && normalized?.personal_info?.name;
 
         if (initialMatchRecordId.current) {
           await supabase.from('adaptations').update({
             language, final_score: finalScore,
-            adapted_content: normalized, analysis: result?.analisis || null,
+            adapted_content: normalized, analysis: guardedAnalysis,
           }).eq('id', initialMatchRecordId.current);
         } else {
           await supabase.from('adaptations').insert({
             user_id: user.id, job_title: initialMatch?.job_title || getJobTitle(jdText), job_description: jdText,
             cv_text: cvText, language, initial_match: initialMatch,
             initial_score: initialMatch?.score || 0, final_score: finalScore,
-            adapted_content: normalized, analysis: result?.analisis || null,
+            adapted_content: normalized, analysis: guardedAnalysis,
           });
         }
         initialMatchRecordId.current = null;
