@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import {
   FileText, Upload, ArrowRight, CheckCircle2, AlertCircle, Download,
   ChevronRight, ChevronLeft, Plus, Trash2, LogOut,
@@ -991,18 +991,29 @@ const Dashboard = ({ userId, credits, onLoadAdaptation, onNew, onBuy }: {
           ) : (
             <div className="divide-y divide-zinc-100">
               {filtered.map(item => {
+                const isPending = !item.final_score || item.final_score === 0;
                 const scoreColor = item.final_score >= 80 ? 'text-emerald-600' : item.final_score >= 60 ? 'text-amber-600' : 'text-red-500';
                 return (
                   <div key={item.id} onClick={() => onLoadAdaptation(item)} className="flex items-center gap-4 px-6 py-4 hover:bg-zinc-50 cursor-pointer transition-colors">
-                    <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center shrink-0"><FileText className="w-5 h-5 text-indigo-500" /></div>
+                    <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center shrink-0', isPending ? 'bg-amber-50' : 'bg-indigo-50')}>
+                      <FileText className={cn('w-5 h-5', isPending ? 'text-amber-500' : 'text-indigo-500')} />
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-zinc-900 truncate">{item.job_title || 'Cargo sin nombre'}</p>
-                      <p className="text-xs text-zinc-400">{new Date(item.created_at).toLocaleDateString('es-CL')} · {item.language || 'Español'}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-zinc-900 truncate">{item.job_title || 'Cargo sin nombre'}</p>
+                        {isPending && <span className="shrink-0 text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Pendiente</span>}
+                      </div>
+                      <p className="text-xs text-zinc-400">{new Date(item.created_at).toLocaleDateString('es-CL')} · {item.language || 'Español'}{isPending ? ' · Click para continuar' : ''}</p>
                     </div>
                     <div className="flex items-center gap-4 shrink-0">
                       <div className="text-right"><p className="text-xs text-zinc-400 font-medium">Inicial</p><p className="text-sm font-bold text-zinc-700">{item.initial_score || 0}%</p></div>
                       <ArrowRight className="w-4 h-4 text-zinc-300" />
-                      <div className="text-right"><p className="text-xs text-zinc-400 font-medium">Final</p><p className={cn('text-sm font-black', scoreColor)}>{item.final_score || 0}%</p></div>
+                      <div className="text-right">
+                        <p className="text-xs text-zinc-400 font-medium">Final</p>
+                        {isPending
+                          ? <p className="text-sm font-black text-amber-500">—</p>
+                          : <p className={cn('text-sm font-black', scoreColor)}>{item.final_score}%</p>}
+                      </div>
                       <ChevronRight className="w-4 h-4 text-zinc-300" />
                     </div>
                   </div>
@@ -1018,25 +1029,47 @@ const Dashboard = ({ userId, credits, onLoadAdaptation, onNew, onBuy }: {
 
 // ─── CV Document Editor ───────────────────────────────────────────────────────
 
-const CVDocumentEditor = ({ cv, onChange }: { cv: any; onChange: (cv: any) => void }) => {
+// DocSec MUST live outside CVDocumentEditor — defining it inside causes React to
+// treat it as a new component type on every render, unmounting all children and losing focus.
+const DocSec = ({ title, children }: { title: string; children: React.ReactNode }) => (
+  <div>
+    <div className="flex items-center gap-3 mb-3">
+      <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600 whitespace-nowrap">{title}</h3>
+      <div className="flex-1 h-px bg-indigo-100" />
+    </div>
+    {children}
+  </div>
+);
+
+const CVDocumentEditor = memo(({ cv: propCv, onChange }: { cv: any; onChange: (cv: any) => void }) => {
+  // Local state so parent re-renders don't kill focus on every keystroke
+  const [cv, setCv] = useState(() => propCv);
   const [newTech, setNewTech] = useState('');
   const [newSoft, setNewSoft] = useState('');
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
-  const upd = (path: string[], value: any) => {
-    const u = JSON.parse(JSON.stringify(cv));
-    let o = u; for (let i = 0; i < path.length - 1; i++) o = o[path[i]];
-    o[path[path.length - 1]] = value; onChange(u);
-  };
+  // Sync from parent only when a brand-new adaptation is loaded (reference identity changes)
+  const prevPropRef = useRef(propCv);
+  useEffect(() => {
+    if (propCv !== prevPropRef.current) {
+      prevPropRef.current = propCv;
+      setCv(propCv);
+    }
+  }, [propCv]);
 
-  const DocSec = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <div>
-      <div className="flex items-center gap-3 mb-3">
-        <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600 whitespace-nowrap">{title}</h3>
-        <div className="flex-1 h-px bg-indigo-100" />
-      </div>
-      {children}
-    </div>
-  );
+  // Debounce parent notification so typing stays smooth
+  const debounceRef = useRef<any>(null);
+  const upd = useCallback((path: string[], value: any) => {
+    setCv((prev: any) => {
+      const u = JSON.parse(JSON.stringify(prev));
+      let o = u; for (let i = 0; i < path.length - 1; i++) o = o[path[i]];
+      o[path[path.length - 1]] = value;
+      clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => onChangeRef.current(u), 300);
+      return u;
+    });
+  }, []);
 
   return (
     <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
@@ -1165,7 +1198,7 @@ const CVDocumentEditor = ({ cv, onChange }: { cv: any; onChange: (cv: any) => vo
       </div>
     </div>
   );
-};
+});
 
 // ─── Match Analysis Panel ─────────────────────────────────────────────────────
 
@@ -1309,10 +1342,11 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
   const [loading, setLoading] = useState(true);
   const [editingPkg, setEditingPkg] = useState<string | null>(null);
   const [pkgForm, setPkgForm] = useState({ name: '', credits: 0, price: 0 });
-  const [creditModal, setCreditModal] = useState<{ userId: string; email: string; current: number } | null>(null);
+  const [creditModal, setCreditModal] = useState<{ userId: string; email: string; name: string; current: number } | null>(null);
   const [newCredits, setNewCredits] = useState('');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
 
   useEffect(() => { loadAll(); }, []);
 
@@ -1322,7 +1356,7 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('packages').select('*').order('sort_order'),
       supabase.from('purchases').select('*').order('created_at', { ascending: false }),
-      supabase.from('adaptations').select('id, initial_score, final_score, created_at'),
+      supabase.from('adaptations').select('id, user_id, initial_score, final_score, created_at'),
     ]);
     setUsers(u.data || []);
     setPackages(pkg.data || []);
@@ -1451,38 +1485,52 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
               )}
 
               {tab === 'users' && (
-                <div>
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                    <input value={userSearch} onChange={e => setUserSearch(e.target.value)}
+                      placeholder="Buscar por nombre o email..."
+                      className="w-full pl-9 pr-4 py-2 border border-zinc-200 rounded-xl text-sm outline-none focus:border-indigo-400" />
+                  </div>
                   <div className="divide-y divide-zinc-100 border border-zinc-100 rounded-2xl overflow-hidden">
                     <div className="grid grid-cols-5 gap-4 px-4 py-3 bg-zinc-50 text-xs font-black uppercase tracking-widest text-zinc-400">
                       <span className="col-span-2">Usuario</span><span>Créditos</span><span>Adaptaciones</span><span>Acciones</span>
                     </div>
-                    {users.map(u => {
-                      const userAdapts = adaptations.filter((a: any) => {
-                        // We don't have user_id in the mini select, so just count overall
-                        return true;
-                      });
-                      const userPurchases = purchases.filter(p => p.user_id === u.id);
-                      return (
-                        <div key={u.id} className="grid grid-cols-5 gap-4 px-4 py-3 items-center hover:bg-zinc-50">
-                          <div className="col-span-2 min-w-0">
-                            <p className="font-semibold text-zinc-900 truncate text-sm">{u.email}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <p className="text-xs text-zinc-400">{new Date(u.created_at).toLocaleDateString('es-CL')}</p>
-                              {u.is_admin && <Badge color="indigo">Admin</Badge>}
+                    {users
+                      .filter(u => {
+                        if (!userSearch) return true;
+                        const q = userSearch.toLowerCase();
+                        return u.email?.toLowerCase().includes(q) || u.full_name?.toLowerCase().includes(q);
+                      })
+                      .map(u => {
+                        const userAdapts = adaptations.filter((a: any) => a.user_id === u.id);
+                        const userAdaptsDone = userAdapts.filter(a => a.final_score > 0).length;
+                        return (
+                          <div key={u.id} className="grid grid-cols-5 gap-4 px-4 py-3 items-center hover:bg-zinc-50">
+                            <div className="col-span-2 min-w-0">
+                              {u.full_name && <p className="font-semibold text-zinc-900 truncate text-sm">{u.full_name}</p>}
+                              <p className={cn('truncate text-sm', u.full_name ? 'text-zinc-400 text-xs' : 'font-semibold text-zinc-900')}>{u.email}</p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <p className="text-xs text-zinc-400">{new Date(u.created_at).toLocaleDateString('es-CL')}</p>
+                                {u.is_admin && <Badge color="indigo">Admin</Badge>}
+                              </div>
+                            </div>
+                            <div>
+                              <span className={cn('text-sm font-black', u.credits <= 2 ? 'text-red-500' : 'text-zinc-900')}>{u.credits}</span>
+                            </div>
+                            <div className="text-sm text-zinc-500">
+                              <span className="font-bold text-zinc-900">{userAdaptsDone}</span>
+                              <span className="text-zinc-400"> / {userAdapts.length}</span>
+                              <p className="text-xs text-zinc-400">completas / total</p>
+                            </div>
+                            <div>
+                              <Button size="sm" variant="outline" onClick={() => setCreditModal({ userId: u.id, email: u.email, name: u.full_name || u.email, current: u.credits })}>
+                                <Plus className="w-3.5 h-3.5" /> Créditos
+                              </Button>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className={cn('text-sm font-black', u.credits <= 2 ? 'text-red-500' : 'text-zinc-900')}>{u.credits}</span>
-                          </div>
-                          <div className="text-sm text-zinc-500">{userPurchases.length} compras</div>
-                          <div>
-                            <Button size="sm" variant="outline" onClick={() => setCreditModal({ userId: u.id, email: u.email, current: u.credits })}>
-                              <Plus className="w-3.5 h-3.5" /> Créditos
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
                   </div>
                 </div>
               )}
@@ -1542,7 +1590,7 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
         <div className="fixed inset-0 bg-black/40 z-60 flex items-center justify-center p-4">
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
             <h3 className="font-black text-zinc-900 mb-1">Otorgar créditos</h3>
-            <p className="text-sm text-zinc-500 mb-4">{creditModal.email} · Tiene {creditModal.current} créditos</p>
+            <p className="text-sm text-zinc-500 mb-4">{creditModal.name !== creditModal.email ? `${creditModal.name} · ` : ''}{creditModal.email} · Tiene {creditModal.current} créditos</p>
             <div className="space-y-3">
               <div>
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Cantidad de créditos</label>
@@ -1659,13 +1707,30 @@ export default function App() {
     setCvText(item.cv_text || ''); setJdText(item.job_description || '');
     setLanguage(item.language || 'Español');
     setInitialMatch(item.initial_match || null);
-    setAdaptedCV(item.adapted_content || null);
-    setAnalysis(item.analysis || null);
-    setStep(3); setView('workflow');
+    setError(null);
+
+    const isComplete = item.final_score > 0 && item.adapted_content;
+    if (isComplete) {
+      // Adaptation done → go straight to results
+      setAdaptedCV(item.adapted_content);
+      setAnalysis(item.analysis || null);
+      initialMatchRecordId.current = null;
+      setStep(3);
+    } else {
+      // Only initial match saved → resume from step 1 so user can continue
+      setAdaptedCV(null);
+      setAnalysis(null);
+      initialMatchRecordId.current = item.id; // reuse existing DB record
+      freeRetryRef.current = true; // don't charge credit — initial attempt already consumed it (or never finished)
+      setStep(1);
+    }
+    setView('workflow');
   };
 
   // Ref to track the initial-match-only DB record so we can update it later when adaptation completes
   const initialMatchRecordId = useRef<string | null>(null);
+  // When user retries a previously failed adaptation (final_score=0), don't charge credit
+  const freeRetryRef = useRef(false);
 
   const handleCalcMatch = async () => {
     if (!cvText.trim() || !jdText.trim()) { setError('Necesitas un CV y una descripción del cargo.'); return; }
@@ -1718,8 +1783,9 @@ export default function App() {
 
       if (user) {
         const finalScore = result?.analisis?.match_score_adapted || 0;
+        const hasValidResult = finalScore > 0 && normalized?.personal_info?.name;
+
         if (initialMatchRecordId.current) {
-          // Update existing record with adaptation results
           await supabase.from('adaptations').update({
             language, final_score: finalScore,
             adapted_content: normalized, analysis: result?.analisis || null,
@@ -1733,12 +1799,14 @@ export default function App() {
           });
         }
         initialMatchRecordId.current = null;
-        // Consume credit
-        if (!isAdmin) {
+
+        // Only consume credit if result is valid AND it's not a free retry of a failed adaptation
+        if (!isAdmin && hasValidResult && !freeRetryRef.current) {
           const newCredits = Math.max(0, credits - 1);
           await supabase.from('profiles').update({ credits: newCredits }).eq('id', user.id);
           setProfile((p: any) => ({ ...p, credits: newCredits }));
         }
+        freeRetryRef.current = false;
       }
       setStep(3);
     } catch (err: any) { setError(err.message); }
