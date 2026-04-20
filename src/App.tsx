@@ -940,45 +940,49 @@ const Dashboard = ({ userId, credits, onLoadAdaptation, onNew, onBuy }: {
 
   return (
     <div className="min-h-screen bg-zinc-50">
-      <div className="max-w-6xl mx-auto px-6 py-10">
-        <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+        {/* Stats grid: 2 cols on mobile, 4 on desktop */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
           {[
             { label: 'Matches iniciales', value: initialMatches, icon: Target, color: 'text-blue-600', bg: 'bg-blue-50' },
             { label: 'CVs optimizados', value: fullAdaptations, icon: Zap, color: 'text-indigo-600', bg: 'bg-indigo-50' },
             { label: 'Score promedio', value: initialMatches > 0 ? `${avgScore}%` : '—', icon: BarChart2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
             { label: 'Mejor match', value: bestScore > 0 ? `${bestScore}%` : '—', icon: Star, color: 'text-amber-600', bg: 'bg-amber-50' },
           ].map((stat, i) => (
-            <Card key={i} className="p-5">
-              <div className="flex items-center gap-3">
-                <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', stat.bg)}>
-                  <stat.icon className={cn('w-5 h-5', stat.color)} />
+            <Card key={i} className="p-4 sm:p-5">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className={cn('w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0', stat.bg)}>
+                  <stat.icon className={cn('w-4 h-4 sm:w-5 sm:h-5', stat.color)} />
                 </div>
-                <div><p className="text-2xl font-black text-zinc-900">{stat.value}</p><p className="text-xs text-zinc-500 font-medium">{stat.label}</p></div>
+                <div>
+                  <p className="text-xl sm:text-2xl font-black text-zinc-900">{stat.value}</p>
+                  <p className="text-[11px] sm:text-xs text-zinc-500 font-medium leading-tight">{stat.label}</p>
+                </div>
               </div>
             </Card>
           ))}
         </div>
 
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-xl">
-            <CreditCard className="w-4 h-4 text-indigo-600" />
+          <div className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-xl">
+            <CreditCard className="w-4 h-4 text-indigo-600 shrink-0" />
             <span className="text-sm font-black text-indigo-700">{credits} adaptaciones disponibles</span>
-            <button onClick={onBuy} className="ml-2 text-xs font-bold text-indigo-500 hover:text-indigo-700 underline">Comprar más</button>
+            <button onClick={onBuy} className="ml-2 text-xs font-bold text-indigo-500 hover:text-indigo-700 underline whitespace-nowrap">Comprar más</button>
           </div>
         </div>
 
         <Card noPadding>
-          <div className="p-6 border-b border-zinc-100 flex items-center justify-between gap-4">
-            <h2 className="text-lg font-black text-zinc-900">Historial de adaptaciones</h2>
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar cargo..."
-                  className="pl-9 pr-4 py-2 text-sm border border-zinc-100 rounded-xl bg-zinc-50 outline-none focus:border-indigo-400 w-52" />
-              </div>
+          <div className="p-4 sm:p-6 border-b border-zinc-100">
+            <div className="flex items-center justify-between gap-3 mb-3 sm:mb-0">
+              <h2 className="text-lg font-black text-zinc-900">Historial de adaptaciones</h2>
               <Button size="sm" onClick={onNew} disabled={credits <= 0}>
                 <Plus className="w-4 h-4" /> Nueva
               </Button>
+            </div>
+            <div className="relative mt-3">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar cargo..."
+                className="pl-9 pr-4 py-2 text-sm border border-zinc-100 rounded-xl bg-zinc-50 outline-none focus:border-indigo-400 w-full" />
             </div>
           </div>
           {loading ? (
@@ -994,22 +998,25 @@ const Dashboard = ({ userId, credits, onLoadAdaptation, onNew, onBuy }: {
                 const isPending = !item.final_score || item.final_score === 0;
                 const scoreColor = item.final_score >= 80 ? 'text-emerald-600' : item.final_score >= 60 ? 'text-amber-600' : 'text-red-500';
                 return (
-                  <div key={item.id} onClick={() => onLoadAdaptation(item)} className="flex items-center gap-4 px-6 py-4 hover:bg-zinc-50 cursor-pointer transition-colors">
-                    <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center shrink-0', isPending ? 'bg-amber-50' : 'bg-indigo-50')}>
-                      <FileText className={cn('w-5 h-5', isPending ? 'text-amber-500' : 'text-indigo-500')} />
+                  <div key={item.id} onClick={() => onLoadAdaptation(item)} className="flex items-center gap-3 px-4 sm:px-6 py-4 hover:bg-zinc-50 cursor-pointer transition-colors">
+                    <div className={cn('w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0', isPending ? 'bg-amber-50' : 'bg-indigo-50')}>
+                      <FileText className={cn('w-4 h-4 sm:w-5 sm:h-5', isPending ? 'text-amber-500' : 'text-indigo-500')} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-zinc-900 truncate">{item.job_title || 'Cargo sin nombre'}</p>
                         {isPending && <span className="shrink-0 text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Pendiente</span>}
                       </div>
-                      <p className="text-xs text-zinc-400">{new Date(item.created_at).toLocaleDateString('es-CL')} · {item.language || 'Español'}{isPending ? ' · Click para continuar' : ''}</p>
+                      <p className="text-xs text-zinc-400">{new Date(item.created_at).toLocaleDateString('es-CL')} · {item.language || 'Español'}</p>
                     </div>
-                    <div className="flex items-center gap-4 shrink-0">
-                      <div className="text-right"><p className="text-xs text-zinc-400 font-medium">Inicial</p><p className="text-sm font-bold text-zinc-700">{item.initial_score || 0}%</p></div>
-                      <ArrowRight className="w-4 h-4 text-zinc-300" />
-                      <div className="text-right">
-                        <p className="text-xs text-zinc-400 font-medium">Final</p>
+                    <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+                      <div className="text-center">
+                        <p className="text-[10px] text-zinc-400 font-medium">Inicial</p>
+                        <p className="text-sm font-bold text-zinc-700">{item.initial_score || 0}%</p>
+                      </div>
+                      <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 text-zinc-300" />
+                      <div className="text-center">
+                        <p className="text-[10px] text-zinc-400 font-medium">Final</p>
                         {isPending
                           ? <p className="text-sm font-black text-amber-500">—</p>
                           : <p className={cn('text-sm font-black', scoreColor)}>{item.final_score}%</p>}
@@ -1878,12 +1885,12 @@ export default function App() {
         {view === 'dashboard' ? (
           <motion.div key="dashboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 text-white">
-              <div className="max-w-6xl mx-auto px-6 py-10 flex items-center justify-between">
+              <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
-                  <h1 className="text-3xl font-black mb-1">Hola, {user.user_metadata?.full_name?.split(' ')[0] || 'bienvenido'} 👋</h1>
-                  <p className="text-indigo-200">Adapta tu CV a cualquier cargo en minutos</p>
+                  <h1 className="text-2xl sm:text-3xl font-black mb-1">Hola, {user.user_metadata?.full_name?.split(' ')[0] || 'bienvenido'} 👋</h1>
+                  <p className="text-indigo-200 text-sm sm:text-base">Adapta tu CV a cualquier cargo en minutos</p>
                 </div>
-                <Button variant="white" size="lg" onClick={startNewWorkflow}><Plus className="w-5 h-5" /> Nueva adaptación</Button>
+                <Button variant="white" size="lg" onClick={startNewWorkflow} className="w-full sm:w-auto justify-center"><Plus className="w-5 h-5" /> Nueva adaptación</Button>
               </div>
             </div>
             <CreditsBanner credits={credits} onBuy={() => setShowPackages(true)} />
