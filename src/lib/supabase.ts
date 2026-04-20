@@ -9,8 +9,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Auth helpers
-const APP_URL = import.meta.env.VITE_APP_URL || 'https://www.cvjob.cl';
+// Auth helpers — never redirect to localhost
+const PROD_URL = 'https://www.cvjob.cl';
+const APP_URL = (typeof window !== 'undefined' && !window.location.hostname.includes('localhost'))
+  ? window.location.origin
+  : PROD_URL;
 
 export const signInWithGoogle = () =>
   supabase.auth.signInWithOAuth({
