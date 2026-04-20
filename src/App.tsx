@@ -194,19 +194,19 @@ const ScoreRing = ({ score, size = 120 }: { score: number; size?: number }) => {
 };
 
 const Stepper = ({ currentStep, steps }: { currentStep: number; steps: string[] }) => (
-  <div className="flex items-center justify-between w-full max-w-3xl mx-auto mb-16 px-4">
+  <div className="flex items-center justify-between w-full max-w-3xl mx-auto mb-8 sm:mb-16 px-0 sm:px-4">
     {steps.map((step, i) => (
       <React.Fragment key={step}>
-        <div className="flex flex-col items-center gap-3">
+        <div className="flex flex-col items-center gap-1 sm:gap-3">
           <motion.div initial={false}
             animate={{ backgroundColor: i <= currentStep ? '#4f46e5' : '#fff', color: i <= currentStep ? '#fff' : '#a1a1aa', scale: i === currentStep ? 1.1 : 1, borderColor: i <= currentStep ? '#4f46e5' : '#f4f4f5' }}
-            className="w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-black border-2 shadow-sm">
-            {i < currentStep ? <CheckCircle2 className="w-6 h-6" /> : i + 1}
+            className="w-8 h-8 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center text-xs sm:text-sm font-black border-2 shadow-sm">
+            {i < currentStep ? <CheckCircle2 className="w-4 h-4 sm:w-6 sm:h-6" /> : i + 1}
           </motion.div>
-          <span className={cn('text-[10px] font-black uppercase tracking-widest whitespace-nowrap', i <= currentStep ? 'text-indigo-600' : 'text-zinc-400')}>{step}</span>
+          <span className={cn('text-[9px] sm:text-[10px] font-black uppercase tracking-widest whitespace-nowrap hidden sm:block', i <= currentStep ? 'text-indigo-600' : 'text-zinc-400')}>{step}</span>
         </div>
         {i < steps.length - 1 && (
-          <div className="flex-1 h-0.5 mx-4 bg-zinc-100 relative overflow-hidden rounded-full">
+          <div className="flex-1 h-0.5 mx-1 sm:mx-4 bg-zinc-100 relative overflow-hidden rounded-full">
             <motion.div initial={{ width: 0 }} animate={{ width: i < currentStep ? '100%' : '0%' }}
               className="absolute inset-0 bg-indigo-600" transition={{ duration: 0.8 }} />
           </div>
@@ -1281,14 +1281,14 @@ const ExportStep = ({ cv, analysis, language, onBack }: { cv: any; analysis: any
   ];
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <Card className="p-6">
-        <div className="flex items-center justify-between">
-          <div>
+      <Card className="p-4 sm:p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex-1 min-w-0">
             <p className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-1">Resultado final</p>
-            <h3 className="text-2xl font-black text-zinc-900">{analysis?.match_score_adapted || 0}% match</h3>
+            <h3 className="text-xl sm:text-2xl font-black text-zinc-900">{analysis?.match_score_adapted || 0}% match</h3>
             <p className="text-sm text-zinc-500 mt-1">{analysis?.summary_adapted || ''}</p>
           </div>
-          <ScoreRing score={analysis?.match_score_adapted || 0} size={100} />
+          <ScoreRing score={analysis?.match_score_adapted || 0} size={80} />
         </div>
         {analysis?.cannot_improve && analysis?.missing_mandatory?.length > 0 && (
           <div className="mt-4 pt-4 border-t border-amber-100 bg-amber-50 rounded-xl p-4">
@@ -1897,17 +1897,17 @@ export default function App() {
             <Dashboard userId={user.id} credits={credits} onLoadAdaptation={loadFromHistory} onNew={startNewWorkflow} onBuy={() => setShowPackages(true)} />
           </motion.div>
         ) : (
-          <motion.div key="workflow" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="max-w-4xl mx-auto px-6 py-10">
+          <motion.div key="workflow" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
             <Stepper currentStep={step} steps={steps} />
 
             <AnimatePresence mode="wait">
               {step === 0 && (
                 <motion.div key="step0" initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}>
-                  <div className="text-center mb-10">
-                    <h2 className="text-4xl font-black text-zinc-900 mb-2">Prepara tu <span className="text-indigo-600 italic font-serif">postulación</span></h2>
-                    <p className="text-zinc-500 font-medium">Sube tu CV y pega la descripción del cargo para comenzar</p>
+                  <div className="text-center mb-6 sm:mb-10">
+                    <h2 className="text-2xl sm:text-4xl font-black text-zinc-900 mb-2">Prepara tu <span className="text-indigo-600 italic font-serif">postulación</span></h2>
+                    <p className="text-zinc-500 font-medium text-sm sm:text-base">Sube tu CV y pega la descripción del cargo para comenzar</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-6 mb-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-6">
                     <Card>
                       <div className="flex items-center gap-2 mb-4">
                         <span className="w-6 h-6 bg-zinc-900 rounded-lg flex items-center justify-center text-white text-xs font-black">01</span>
@@ -1964,9 +1964,9 @@ export default function App() {
 
               {step === 1 && initialMatch && (
                 <motion.div key="step1" initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}>
-                  <div className="text-center mb-8">
-                    <h2 className="text-4xl font-black text-zinc-900 mb-2">Tu match <span className="text-indigo-600 italic font-serif">inicial</span></h2>
-                    <p className="text-zinc-500 font-medium">Así está tu CV vs este cargo actualmente</p>
+                  <div className="text-center mb-6 sm:mb-8">
+                    <h2 className="text-2xl sm:text-4xl font-black text-zinc-900 mb-2">Tu match <span className="text-indigo-600 italic font-serif">inicial</span></h2>
+                    <p className="text-zinc-500 font-medium text-sm sm:text-base">Así está tu CV vs este cargo actualmente</p>
                   </div>
 
                   {initialMatch.score >= 90 && (
@@ -1987,16 +1987,16 @@ export default function App() {
                   )}
 
                   <Card className="max-w-2xl mx-auto">
-                    <div className="flex items-center gap-8 mb-6">
-                      <ScoreRing score={initialMatch.score} size={130} />
-                      <div className="flex-1">
+                    <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-8 mb-6">
+                      <ScoreRing score={initialMatch.score} size={110} />
+                      <div className="flex-1 text-center sm:text-left">
                         <p className="font-black text-zinc-900 text-lg mb-2">
                           {initialMatch.score >= 90 ? '¡Match excepcional!' : initialMatch.score >= 70 ? '¡Buen match!' : initialMatch.score >= 50 ? 'Match moderado' : 'Match bajo'}
                         </p>
                         <p className="text-zinc-600 text-sm leading-relaxed">{initialMatch.summary}</p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <p className="text-xs font-black uppercase tracking-widest text-emerald-600 mb-2 flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Puntos fuertes</p>
                         <ul className="space-y-1.5">{initialMatch.key_matches?.map((m: string, i: number) => <li key={i} className="text-xs text-zinc-600 bg-emerald-50 rounded-xl px-3 py-2 font-medium">{m}</li>)}</ul>
@@ -2007,7 +2007,7 @@ export default function App() {
                       </div>
                     </div>
                   </Card>
-                  <div className="flex justify-center gap-4 mt-8">
+                  <div className="flex justify-center gap-4 mt-6 sm:mt-8">
                     <Button variant="outline" onClick={() => setStep(0)}><ChevronLeft className="w-4 h-4" /> Volver</Button>
                     <Button size="lg" onClick={() => setStep(2)}>Continuar <ArrowRight className="w-4 h-4" /></Button>
                   </div>
@@ -2016,9 +2016,9 @@ export default function App() {
 
               {step === 2 && (
                 <motion.div key="step2" initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}>
-                  <div className="text-center mb-10">
-                    <h2 className="text-4xl font-black text-zinc-900 mb-2">Idioma del <span className="text-indigo-600 italic font-serif">CV adaptado</span></h2>
-                    <p className="text-zinc-500 font-medium">¿En qué idioma quieres el CV resultante?</p>
+                  <div className="text-center mb-6 sm:mb-10">
+                    <h2 className="text-2xl sm:text-4xl font-black text-zinc-900 mb-2">Idioma del <span className="text-indigo-600 italic font-serif">CV adaptado</span></h2>
+                    <p className="text-zinc-500 font-medium text-sm sm:text-base">¿En qué idioma quieres el CV resultante?</p>
                   </div>
                   {credits <= 0 && !isAdmin && (
                     <div className="max-w-md mx-auto mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3">
@@ -2070,18 +2070,18 @@ export default function App() {
 
               {step === 3 && adaptedCV && (
                 <motion.div key="step3" initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}>
-                  <div className="flex items-center justify-between mb-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
                     <div>
-                      <h2 className="text-3xl font-black text-zinc-900">CV <span className="text-indigo-600 italic font-serif">adaptado</span></h2>
-                      <p className="text-zinc-500 text-sm mt-1">Edita directamente sobre el documento · haz click en cualquier campo</p>
+                      <h2 className="text-2xl sm:text-3xl font-black text-zinc-900">CV <span className="text-indigo-600 italic font-serif">adaptado</span></h2>
+                      <p className="text-zinc-500 text-sm mt-1">Edita directamente · haz click en cualquier campo</p>
                     </div>
-                    <Button onClick={() => setStep(4)}>Exportar <Download className="w-4 h-4" /></Button>
+                    <Button onClick={() => setStep(4)} className="w-full sm:w-auto justify-center">Exportar <Download className="w-4 h-4" /></Button>
                   </div>
-                  <div className="grid grid-cols-3 gap-6 items-start">
-                    <div className="col-span-2">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                    <div className="lg:col-span-2">
                       <CVDocumentEditor cv={adaptedCV} onChange={setAdaptedCV} />
                     </div>
-                    <div className="col-span-1 sticky top-20">
+                    <div className="lg:col-span-1 lg:sticky lg:top-20">
                       <MatchAnalysisPanel initialMatch={initialMatch} analysis={analysis} />
                     </div>
                   </div>
@@ -2094,9 +2094,9 @@ export default function App() {
 
               {step === 4 && adaptedCV && (
                 <motion.div key="step4" initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -30 }}>
-                  <div className="text-center mb-8">
-                    <h2 className="text-4xl font-black text-zinc-900 mb-2">Exporta tu <span className="text-indigo-600 italic font-serif">CV</span></h2>
-                    <p className="text-zinc-500 font-medium">Elige el template y descarga tu PDF profesional</p>
+                  <div className="text-center mb-6 sm:mb-8">
+                    <h2 className="text-2xl sm:text-4xl font-black text-zinc-900 mb-2">Exporta tu <span className="text-indigo-600 italic font-serif">CV</span></h2>
+                    <p className="text-zinc-500 font-medium text-sm sm:text-base">Elige el template y descarga tu PDF profesional</p>
                   </div>
                   <ExportStep cv={adaptedCV} analysis={analysis} language={language} onBack={() => setStep(3)} />
                 </motion.div>
