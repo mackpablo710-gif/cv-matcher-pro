@@ -10,7 +10,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Auth helpers
-const APP_URL = import.meta.env.VITE_APP_URL || 'https://cv-matcher-pro.vercel.app';
+const APP_URL = import.meta.env.VITE_APP_URL || 'https://www.cvjob.cl';
 
 export const signInWithGoogle = () =>
   supabase.auth.signInWithOAuth({
