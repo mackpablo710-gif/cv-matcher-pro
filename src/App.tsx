@@ -772,13 +772,8 @@ const PackagesModal = ({ onClose, userId, currentCredits, onPurchased }: {
 }) => {
   const [packages, setPackages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState<any>(null);
-  const [step, setStep] = useState<'list' | 'checkout' | 'success'>('list');
-  const [processing, setProcessing] = useState(false);
-  const [cardName, setCardName] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
+  const [processing, setProcessing] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     supabase.from('packages').select('*').eq('active', true).order('sort_order').then(({ data }) => {
@@ -787,25 +782,24 @@ const PackagesModal = ({ onClose, userId, currentCredits, onPurchased }: {
     });
   }, []);
 
-  const handleSelect = (pkg: any) => { setSelected(pkg); setStep('checkout'); };
-
-  const handlePay = async () => {
-    if (!selected || !userId) return;
-    setProcessing(true);
-    // Simulate payment processing
-    await new Promise(r => setTimeout(r, 1800));
+  const handleBuy = async (pkg: any) => {
+    if (!userId || processing) return;
+    setProcessing(pkg.id);
+    setError('');
     try {
-      await supabase.from('purchases').insert({
-        user_id: userId, package_id: selected.id,
-        credits: selected.credits, price: selected.price,
-        note: 'Compra online',
+      const res = await fetch('/api/create-preference', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ package_id: pkg.id, user_id: userId }),
       });
-      const newCredits = (currentCredits || 0) + selected.credits;
-      await supabase.from('profiles').update({ credits: newCredits }).eq('id', userId);
-      if (onPurchased) onPurchased(newCredits);
-      setStep('success');
-    } catch (e) { console.error(e); }
-    finally { setProcessing(false); }
+      const data = await res.json();
+      if (!res.ok || !data.init_point) throw new Error(data.error || 'Error al crear preferencia');
+      // Redirect to Mercado Pago — user never enters card data on our site
+      window.location.href = data.init_point;
+    } catch (e: any) {
+      setError(e.message || 'Error al iniciar pago');
+      setProcessing(null);
+    }
   };
 
   return (
@@ -813,85 +807,42 @@ const PackagesModal = ({ onClose, userId, currentCredits, onPurchased }: {
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden">
         <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-black text-zinc-900">
-              {step === 'list' ? 'Paquetes de adaptaciones' : step === 'checkout' ? 'Datos de pago' : '¡Compra exitosa!'}
-            </h2>
-            <p className="text-sm text-zinc-500 mt-0.5">
-              {step === 'list' ? 'Elige el plan que mejor se adapte a ti' : step === 'checkout' ? `${selected?.name} · ${formatCLP(selected?.price)}` : `+${selected?.credits} adaptaciones agregadas`}
-            </p>
+            <h2 className="text-xl font-black text-zinc-900">Paquetes de adaptaciones</h2>
+            <p className="text-sm text-zinc-500 mt-0.5">Elige el plan que mejor se adapte a ti</p>
           </div>
           <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-zinc-100"><X className="w-5 h-5 text-zinc-500" /></button>
         </div>
 
         <AnimatePresence mode="wait">
-          {step === 'list' && (
-            <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-6 space-y-4">
-              {loading ? <div className="text-center py-8 text-zinc-400">Cargando...</div> : packages.map((pkg, i) => (
-                <button key={pkg.id} onClick={() => handleSelect(pkg)}
-                  className={cn('w-full p-5 rounded-2xl border-2 transition-all text-left hover:border-indigo-400 hover:shadow-md', i === 1 ? 'border-indigo-600 bg-indigo-50/50' : 'border-zinc-100')}>
-                  {i === 1 && <div className="mb-2"><Badge color="indigo">Más popular</Badge></div>}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-black text-zinc-900 text-lg">{pkg.name}</p>
-                      <p className="text-sm text-zinc-500">{pkg.credits} adaptaciones completas</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-black text-zinc-900">{formatCLP(pkg.price)}</p>
-                      <p className="text-xs text-zinc-400">{formatCLP(Math.round(pkg.price / pkg.credits))} / adaptación</p>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </motion.div>
-          )}
-
-          {step === 'checkout' && (
-            <motion.div key="checkout" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-6 space-y-4">
-              <div className="p-4 bg-indigo-50 rounded-2xl flex items-center justify-between">
-                <div>
-                  <p className="font-black text-zinc-900">{selected?.name}</p>
-                  <p className="text-sm text-zinc-500">{selected?.credits} adaptaciones</p>
-                </div>
-                <p className="text-2xl font-black text-indigo-600">{formatCLP(selected?.price)}</p>
-              </div>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Nombre en la tarjeta</label>
-                  <input value={cardName} onChange={e => setCardName(e.target.value)} placeholder="Juan Pérez"
-                    className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-indigo-400" />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Número de tarjeta</label>
-                  <input value={cardNumber} onChange={e => setCardNumber(e.target.value.replace(/\D/g,'').slice(0,16).replace(/(.{4})/g,'$1 ').trim())} placeholder="0000 0000 0000 0000" maxLength={19}
-                    className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-indigo-400 font-mono" />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
+          <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="p-6 space-y-4">
+            {loading ? (
+              <div className="text-center py-8 text-zinc-400">Cargando...</div>
+            ) : packages.map((pkg, i) => (
+              <div key={pkg.id} className={cn('p-5 rounded-2xl border-2 transition-all', i === 1 ? 'border-indigo-600 bg-indigo-50/50' : 'border-zinc-100')}>
+                {i === 1 && <div className="mb-2"><Badge color="indigo">Más popular</Badge></div>}
+                <div className="flex items-center justify-between mb-4">
                   <div>
-                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Vencimiento</label>
-                    <input value={cardExpiry} onChange={e => setCardExpiry(e.target.value.replace(/\D/g,'').slice(0,4).replace(/(.{2})/,'$1/'))} placeholder="MM/AA" maxLength={5}
-                      className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-indigo-400" />
+                    <p className="font-black text-zinc-900 text-lg">{pkg.name}</p>
+                    <p className="text-sm text-zinc-500">{pkg.credits} adaptaciones completas</p>
                   </div>
-                  <div>
-                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">CVV</label>
-                    <input value={cardCvv} onChange={e => setCardCvv(e.target.value.replace(/\D/g,'').slice(0,4))} placeholder="123" maxLength={4}
-                      className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-indigo-400" />
+                  <div className="text-right">
+                    <p className="text-2xl font-black text-zinc-900">{formatCLP(pkg.price)}</p>
+                    <p className="text-xs text-zinc-400">{formatCLP(Math.round(pkg.price / pkg.credits))} / adaptación</p>
                   </div>
                 </div>
-              </div>
-              <div className="flex gap-3 pt-2">
-                <Button variant="outline" onClick={() => setStep('list')} disabled={processing}><ChevronLeft className="w-4 h-4" /> Volver</Button>
-                <Button className="flex-1" onClick={handlePay} loading={processing}
-                  disabled={!cardName || cardNumber.replace(/\s/g,'').length < 16 || cardExpiry.length < 5 || cardCvv.length < 3}>
-                  <CreditCard className="w-4 h-4" /> {processing ? 'Procesando...' : `Pagar ${formatCLP(selected?.price)}`}
+                <Button className="w-full justify-center" onClick={() => handleBuy(pkg)} loading={processing === pkg.id} disabled={!!processing}>
+                  {processing === pkg.id ? 'Redirigiendo...' : <><CreditCard className="w-4 h-4" /> Pagar con Mercado Pago</>}
                 </Button>
               </div>
-              <p className="text-xs text-zinc-400 text-center flex items-center justify-center gap-1">
-                <Shield className="w-3 h-3" /> Pago seguro simulado — integración real próximamente
-              </p>
-            </motion.div>
-          )}
+            ))}
+            {error && <p className="text-sm text-red-500 text-center font-medium">{error}</p>}
+            <div className="flex items-center justify-center gap-2 pt-2 text-xs text-zinc-400">
+              <Shield className="w-3.5 h-3.5" />
+              <span>Pago 100% seguro · Procesado por Mercado Pago · Tus datos nunca pasan por nuestro servidor</span>
+            </div>
+          </motion.div>
 
-          {step === 'success' && (
+          {false && (
             <motion.div key="success" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="p-8 text-center space-y-4">
               <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-8 h-8 text-emerald-600" />
@@ -1678,6 +1629,27 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Handle Mercado Pago return — show toast and clean URL
+  const [paymentToast, setPaymentToast] = useState<'success' | 'pending' | 'failure' | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get('payment');
+    if (payment === 'success' || payment === 'pending' || payment === 'failure') {
+      setPaymentToast(payment as any);
+      // Clean URL without reload
+      window.history.replaceState({}, '', window.location.pathname);
+      // Reload credits after successful payment
+      if (payment === 'success') {
+        setTimeout(() => {
+          supabase.auth.getUser().then(({ data: { user } }) => {
+            if (user) loadProfile(user.id);
+          });
+        }, 3000); // wait for webhook to process
+      }
+      setTimeout(() => setPaymentToast(null), 6000);
+    }
+  }, []);
+
   const loadProfile = async (userId: string) => {
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
     if (data) {
@@ -1880,6 +1852,20 @@ export default function App() {
           <motion.div className="h-full bg-indigo-600" animate={{ width: `${progress}%` }} transition={{ duration: 0.4 }} />
         </div>
       )}
+
+      {/* Payment toast */}
+      <AnimatePresence>
+        {paymentToast && (
+          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
+            className={cn('fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl shadow-lg flex items-center gap-3 text-sm font-bold',
+              paymentToast === 'success' ? 'bg-emerald-600 text-white' :
+              paymentToast === 'pending' ? 'bg-amber-500 text-white' : 'bg-red-500 text-white')}>
+            {paymentToast === 'success' ? <><CheckCircle2 className="w-5 h-5" /> ¡Pago confirmado! Tus créditos se actualizarán en breve.</> :
+             paymentToast === 'pending' ? <><Clock className="w-5 h-5" /> Pago en proceso. Te avisaremos cuando se confirme.</> :
+             <><AlertCircle className="w-5 h-5" /> El pago no se completó. Intenta nuevamente.</>}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence mode="wait">
         {view === 'dashboard' ? (
