@@ -1324,7 +1324,7 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
   };
 
   // Exclude admin-granted (price=0 with note) from financial stats
-  const realPurchases = purchases.filter(p => p.price > 0);
+  const realPurchases = purchases.filter(p => p.price > 0 && p.status === 'approved');
   const adminGrants = purchases.filter(p => p.price === 0);
   const totalRevenue = realPurchases.reduce((a, p) => a + (p.price || 0), 0);
   const totalCredits = realPurchases.reduce((a, p) => a + (p.credits || 0), 0);
