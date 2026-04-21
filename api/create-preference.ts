@@ -51,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           email: profile.email,
           name: profile.full_name || undefined,
         },
-        external_reference: `${user_id}::${pkg.id}::${Date.now()}`,
+        external_reference: `${user_id}::${pkg.id}`,
         back_urls: {
           success: `${APP_URL}?payment=success`,
           failure: `${APP_URL}?payment=failure`,
@@ -59,10 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         },
         auto_return: 'approved',
         notification_url: 'https://www.cvjob.cl/api/mp-webhook',
-        statement_descriptor: 'CVJOB.CL',
-        expires: true,
-        expiration_date_from: new Date().toISOString(),
-        expiration_date_to: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        statement_descriptor: 'CVJOB',
       }),
     });
 
