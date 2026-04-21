@@ -44,13 +44,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           title: `CV Matcher Pro — ${pkg.name}`,
           description: `${pkg.credits} adaptaciones de CV con IA`,
           quantity: 1,
-          unit_price: pkg.price,
+          unit_price: Math.round(pkg.price),
           currency_id: 'CLP',
         }],
-        payer: {
-          email: profile.email,
-          name: profile.full_name || undefined,
-        },
         external_reference: `${user_id}::${pkg.id}`,
         back_urls: {
           success: `${APP_URL}?payment=success`,
