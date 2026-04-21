@@ -2,10 +2,16 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
+  "functions": {
+    "api/create-preference.ts": { "maxDuration": 30 },
+    "api/mp-webhook.ts": { "maxDuration": 30 }
+  },
   "rewrites": [
     { "source": "/api/extract-pdf", "destination": "/api/extract-pdf" },
     { "source": "/api/initial-match", "destination": "/api/initial-match" },
     { "source": "/api/adapt-cv", "destination": "/api/adapt-cv" },
+    { "source": "/api/create-preference", "destination": "/api/create-preference" },
+    { "source": "/api/mp-webhook", "destination": "/api/mp-webhook" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
