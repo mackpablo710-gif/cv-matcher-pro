@@ -10,7 +10,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase, signInWithEmail, signUpWithEmail, signOut, signInWithGoogle } from './lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
-import { extractPdfText, getInitialMatch, adaptCV } from './services/apiClient';
+import { extractPdfText, getInitialMatch, adaptCV, getInterviewQuestions } from './services/apiClient';
 import { jsPDF } from 'jspdf';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType } from 'docx';
 import { clsx, type ClassValue } from 'clsx';
@@ -1224,14 +1224,48 @@ const MatchAnalysisPanel = ({ initialMatch, analysis }: { initialMatch: any; ana
 
 // ─── Export Step ──────────────────────────────────────────────────────────────
 
-const ExportStep = ({ cv, analysis, language, onBack }: { cv: any; analysis: any; language: string; onBack: () => void }) => {
+const TIPO_LABEL: Record<string, { label: string; color: string }> = {
+  tecnica:    { label: 'Técnica',         color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+  conductual: { label: 'Conductual',      color: 'bg-violet-50 text-violet-700 border-violet-200' },
+  cargo:      { label: 'Específica del cargo', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+};
+
+const ExportStep = ({ cv, analysis, language, cvText, jdText, onBack }: {
+  cv: any; analysis: any; language: string; cvText: string; jdText: string; onBack: () => void;
+}) => {
   const [selected, setSelected] = useState<'classic' | 'modern'>('classic');
+  const [questions, setQuestions] = useState<{ tipo: string; pregunta: string; tip: string }[]>([]);
+  const [loadingQ, setLoadingQ] = useState(false);
+  const [qError, setQError] = useState('');
+  const [qLoaded, setQLoaded] = useState(false);
+
+  const loadQuestions = async () => {
+    if (qLoaded || loadingQ) return;
+    setLoadingQ(true); setQError('');
+    try {
+      const res = await getInterviewQuestions(cvText, jdText);
+      setQuestions(res.questions || []);
+      setQLoaded(true);
+    } catch {
+      setQError('No se pudieron cargar las preguntas. Intenta de nuevo.');
+    } finally { setLoadingQ(false); }
+  };
+
+  // Load questions automatically when step mounts
+  React.useEffect(() => { loadQuestions(); }, []);
+
   const templates = [
     { id: 'classic' as const, name: 'Clásico', desc: 'Diseño limpio con header en color. Ideal para cargos corporativos.', preview: '🔵' },
     { id: 'modern' as const, name: 'Moderno', desc: 'Sidebar oscuro con diseño editorial. Para roles creativos o tech.', preview: '🖤' },
   ];
+
+  const sugerencias = Array.isArray(analysis?.sugerencias_revision)
+    ? analysis.sugerencias_revision.filter((s: any) => s?.agregado)
+    : [];
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
+      {/* Score card */}
       <Card className="p-4 sm:p-6">
         <div className="flex items-center justify-between gap-4">
           <div className="flex-1 min-w-0">
@@ -1261,6 +1295,35 @@ const ExportStep = ({ cv, analysis, language, onBack }: { cv: any; analysis: any
           </div>
         )}
       </Card>
+
+      {/* Suggestions to review */}
+      {sugerencias.length > 0 && (
+        <Card className="p-4 sm:p-6 border-amber-200 bg-amber-50/40">
+          <div className="flex items-start gap-3 mb-3">
+            <span className="text-lg">👁️</span>
+            <div>
+              <p className="text-sm font-black text-amber-900">Contenido inferido — revisa antes de enviar</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                La IA agregó estas frases basándose en tu experiencia. Son razonables pero no estaban en tu CV original.
+                Descarga el Word, revísalas y mantén solo las que apliquen a ti.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-2.5">
+            {sugerencias.map((s: any, i: number) => (
+              <div key={i} className="bg-white rounded-xl border border-amber-200 px-4 py-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-600">{s.seccion}</span>
+                </div>
+                <p className="text-sm text-zinc-800 font-medium">"{s.agregado}"</p>
+                <p className="text-xs text-zinc-500 mt-1">{s.razon}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Template picker */}
       <div>
         <p className="text-sm font-black uppercase tracking-widest text-zinc-400 mb-3">Elige tu template</p>
         <div className="grid grid-cols-2 gap-4">
@@ -1275,6 +1338,8 @@ const ExportStep = ({ cv, analysis, language, onBack }: { cv: any; analysis: any
           ))}
         </div>
       </div>
+
+      {/* Download buttons */}
       <div className="flex gap-3 flex-wrap">
         <Button variant="outline" onClick={onBack}><ChevronLeft className="w-4 h-4" /> Editar CV</Button>
         <Button className="flex-1" onClick={() => selected === 'classic' ? generateClassicPDF(cv, language) : generateModernPDF(cv, language)}>
@@ -1285,6 +1350,64 @@ const ExportStep = ({ cv, analysis, language, onBack }: { cv: any; analysis: any
         </Button>
       </div>
       <p className="text-xs text-zinc-400 text-center">El archivo Word te permite editar el CV en Microsoft Word o Google Docs</p>
+
+      {/* Interview questions */}
+      <Card className="p-4 sm:p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+            <span className="text-sm">💬</span>
+          </div>
+          <div>
+            <p className="font-black text-zinc-900 text-sm">Preguntas de entrevista para este cargo</p>
+            <p className="text-xs text-zinc-500">Generadas en base al cargo y tu experiencia específica</p>
+          </div>
+        </div>
+
+        {loadingQ && (
+          <div className="flex items-center gap-2 text-zinc-400 text-sm py-4">
+            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
+              <Loader2 className="w-4 h-4" />
+            </motion.div>
+            Generando preguntas personalizadas…
+          </div>
+        )}
+
+        {qError && !loadingQ && (
+          <div className="flex items-center gap-3">
+            <p className="text-xs text-red-600 flex-1">{qError}</p>
+            <Button variant="outline" onClick={loadQuestions}>Reintentar</Button>
+          </div>
+        )}
+
+        {!loadingQ && !qError && questions.length > 0 && (
+          <div className="space-y-3">
+            {(['tecnica', 'conductual', 'cargo'] as const).map(tipo => {
+              const grupo = questions.filter(q => q.tipo === tipo);
+              if (!grupo.length) return null;
+              const meta = TIPO_LABEL[tipo];
+              return (
+                <div key={tipo}>
+                  <span className={cn('inline-block text-[10px] font-black uppercase tracking-widest border rounded-full px-2.5 py-0.5 mb-2', meta.color)}>
+                    {meta.label}
+                  </span>
+                  <div className="space-y-2">
+                    {grupo.map((q, i) => (
+                      <div key={i} className="bg-zinc-50 rounded-xl px-4 py-3 border border-zinc-100">
+                        <p className="text-sm font-semibold text-zinc-800">{q.pregunta}</p>
+                        {q.tip && (
+                          <p className="text-xs text-indigo-600 mt-1.5 flex items-start gap-1">
+                            <span className="shrink-0 font-bold">💡</span> {q.tip}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
     </div>
   );
 };
@@ -2084,7 +2207,7 @@ export default function App() {
                     <h2 className="text-2xl sm:text-4xl font-black text-zinc-900 mb-2">Exporta tu <span className="text-indigo-600 italic font-serif">CV</span></h2>
                     <p className="text-zinc-500 font-medium text-sm sm:text-base">Elige el template y descarga tu PDF profesional</p>
                   </div>
-                  <ExportStep cv={adaptedCV} analysis={analysis} language={language} onBack={() => setStep(3)} />
+                  <ExportStep cv={adaptedCV} analysis={analysis} language={language} cvText={cvText} jdText={jdText} onBack={() => setStep(3)} />
                 </motion.div>
               )}
             </AnimatePresence>

@@ -24,3 +24,9 @@ export const getInitialMatch = (cvText: string, jdText: string) =>
 
 export const adaptCV = (cvText: string, jdText: string, language: string) =>
   post<any>('/adapt-cv', { cvText, jdText, language });
+
+export const getInterviewQuestions = (cvText: string, jdText: string) =>
+  post<{ questions: { tipo: string; pregunta: string; tip: string }[] }>(
+    '/interview-questions',
+    { cvText, jdText }
+  );
