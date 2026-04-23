@@ -5,7 +5,7 @@ import {
   User as UserIcon, Globe, Mail, Lock, Chrome, Target, Zap, Shield,
   ArrowUp, ArrowDown, Search, Star, BarChart2, Clock, RefreshCw, X, Layers,
   CreditCard, Settings, Users, ShoppingBag, TrendingUp, Edit2, Save, Check, Pencil,
-  DollarSign, Package
+  DollarSign, Package, Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase, signInWithEmail, signUpWithEmail, signOut, signInWithGoogle } from './lib/supabase';
@@ -1259,10 +1259,6 @@ const ExportStep = ({ cv, analysis, language, cvText, jdText, onBack }: {
     { id: 'modern' as const, name: 'Moderno', desc: 'Sidebar oscuro con diseño editorial. Para roles creativos o tech.', preview: '🖤' },
   ];
 
-  const sugerencias = Array.isArray(analysis?.sugerencias_revision)
-    ? analysis.sugerencias_revision.filter((s: any) => s?.agregado)
-    : [];
-
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Score card */}
@@ -1295,33 +1291,6 @@ const ExportStep = ({ cv, analysis, language, cvText, jdText, onBack }: {
           </div>
         )}
       </Card>
-
-      {/* Suggestions to review */}
-      {sugerencias.length > 0 && (
-        <Card className="p-4 sm:p-6 border-amber-200 bg-amber-50/40">
-          <div className="flex items-start gap-3 mb-3">
-            <span className="text-lg">👁️</span>
-            <div>
-              <p className="text-sm font-black text-amber-900">Contenido inferido — revisa antes de enviar</p>
-              <p className="text-xs text-amber-700 mt-0.5">
-                La IA agregó estas frases basándose en tu experiencia. Son razonables pero no estaban en tu CV original.
-                Descarga el Word, revísalas y mantén solo las que apliquen a ti.
-              </p>
-            </div>
-          </div>
-          <div className="space-y-2.5">
-            {sugerencias.map((s: any, i: number) => (
-              <div key={i} className="bg-white rounded-xl border border-amber-200 px-4 py-3">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-600">{s.seccion}</span>
-                </div>
-                <p className="text-sm text-zinc-800 font-medium">"{s.agregado}"</p>
-                <p className="text-xs text-zinc-500 mt-1">{s.razon}</p>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
 
       {/* Template picker */}
       <div>
@@ -2190,8 +2159,30 @@ export default function App() {
                     <div className="lg:col-span-2">
                       <CVDocumentEditor cv={adaptedCV} onChange={setAdaptedCV} />
                     </div>
-                    <div className="lg:col-span-1 lg:sticky lg:top-20">
+                    <div className="lg:col-span-1 lg:sticky lg:top-20 space-y-4">
                       <MatchAnalysisPanel initialMatch={initialMatch} analysis={analysis} />
+                      {Array.isArray(analysis?.sugerencias_revision) && analysis.sugerencias_revision.filter((s: any) => s?.agregado).length > 0 && (
+                        <Card className="p-4 border-amber-200 bg-amber-50/50">
+                          <div className="flex items-start gap-2 mb-3">
+                            <span className="text-base shrink-0">👁️</span>
+                            <div>
+                              <p className="text-xs font-black text-amber-900 uppercase tracking-widest">Revisa estos cambios</p>
+                              <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+                                La IA infirió estas frases de tu experiencia. Son razonables pero no estaban en tu CV. Edítalas aquí si algo no aplica.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            {analysis.sugerencias_revision.filter((s: any) => s?.agregado).map((s: any, i: number) => (
+                              <div key={i} className="bg-white rounded-lg border border-amber-200 px-3 py-2">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-0.5">{s.seccion}</p>
+                                <p className="text-xs text-zinc-800 font-medium">"{s.agregado}"</p>
+                                {s.razon && <p className="text-[10px] text-zinc-400 mt-0.5">{s.razon}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        </Card>
+                      )}
                     </div>
                   </div>
                   <div className="mt-6 flex gap-3">
