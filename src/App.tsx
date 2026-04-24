@@ -10,7 +10,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase, signInWithEmail, signUpWithEmail, signOut, signInWithGoogle, resetPasswordForEmail, updatePassword } from './lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
-import { extractPdfText, getInitialMatch, adaptCV, getInterviewQuestions } from './services/apiClient';
+import { extractPdfText, getInitialMatch, adaptCV } from './services/apiClient';
 import { jsPDF } from 'jspdf';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType } from 'docx';
 import { clsx, type ClassValue } from 'clsx';
@@ -1341,29 +1341,12 @@ const TIPO_LABEL: Record<string, { label: string; color: string }> = {
   cargo:      { label: 'Específica del cargo', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
 };
 
-const ExportStep = ({ cv, analysis, language, cvText, jdText, onBack }: {
-  cv: any; analysis: any; language: string; cvText: string; jdText: string; onBack: () => void;
+const ExportStep = ({ cv, analysis, language, onBack }: {
+  cv: any; analysis: any; language: string; onBack: () => void;
 }) => {
   const [selected, setSelected] = useState<'classic' | 'modern'>('classic');
-  const [questions, setQuestions] = useState<{ tipo: string; pregunta: string; tip: string }[]>([]);
-  const [loadingQ, setLoadingQ] = useState(false);
-  const [qError, setQError] = useState('');
-  const [qLoaded, setQLoaded] = useState(false);
-
-  const loadQuestions = async () => {
-    if (qLoaded || loadingQ) return;
-    setLoadingQ(true); setQError('');
-    try {
-      const res = await getInterviewQuestions(cvText, jdText);
-      setQuestions(res.questions || []);
-      setQLoaded(true);
-    } catch {
-      setQError('No se pudieron cargar las preguntas. Intenta de nuevo.');
-    } finally { setLoadingQ(false); }
-  };
-
-  // Load questions automatically when step mounts
-  React.useEffect(() => { loadQuestions(); }, []);
+  const questions: { tipo: string; pregunta: string; tip: string }[] =
+    Array.isArray(analysis?.preguntas) ? analysis.preguntas : [];
 
   const templates = [
     { id: 'classic' as const, name: 'Clásico', desc: 'Diseño limpio con header en color. Ideal para cargos corporativos.', preview: '🔵' },
@@ -1432,6 +1415,7 @@ const ExportStep = ({ cv, analysis, language, cvText, jdText, onBack }: {
       <p className="text-xs text-zinc-400 text-center">El archivo Word te permite editar el CV en Microsoft Word o Google Docs</p>
 
       {/* Interview questions */}
+      {questions.length > 0 && (
       <Card className="p-4 sm:p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
@@ -1442,52 +1426,34 @@ const ExportStep = ({ cv, analysis, language, cvText, jdText, onBack }: {
             <p className="text-xs text-zinc-500">Generadas en base al cargo y tu experiencia específica</p>
           </div>
         </div>
-
-        {loadingQ && (
-          <div className="flex items-center gap-2 text-zinc-400 text-sm py-4">
-            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
-              <Loader2 className="w-4 h-4" />
-            </motion.div>
-            Generando preguntas personalizadas…
-          </div>
-        )}
-
-        {qError && !loadingQ && (
-          <div className="flex items-center gap-3">
-            <p className="text-xs text-red-600 flex-1">{qError}</p>
-            <Button variant="outline" onClick={loadQuestions}>Reintentar</Button>
-          </div>
-        )}
-
-        {!loadingQ && !qError && questions.length > 0 && (
-          <div className="space-y-3">
-            {(['tecnica', 'conductual', 'cargo'] as const).map(tipo => {
-              const grupo = questions.filter(q => q.tipo === tipo);
-              if (!grupo.length) return null;
-              const meta = TIPO_LABEL[tipo];
-              return (
-                <div key={tipo}>
-                  <span className={cn('inline-block text-[10px] font-black uppercase tracking-widest border rounded-full px-2.5 py-0.5 mb-2', meta.color)}>
-                    {meta.label}
-                  </span>
-                  <div className="space-y-2">
-                    {grupo.map((q, i) => (
-                      <div key={i} className="bg-zinc-50 rounded-xl px-4 py-3 border border-zinc-100">
-                        <p className="text-sm font-semibold text-zinc-800">{q.pregunta}</p>
-                        {q.tip && (
-                          <p className="text-xs text-indigo-600 mt-1.5 flex items-start gap-1">
-                            <span className="shrink-0 font-bold">💡</span> {q.tip}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+        <div className="space-y-3">
+          {(['tecnica', 'conductual', 'cargo'] as const).map(tipo => {
+            const grupo = questions.filter(q => q.tipo === tipo);
+            if (!grupo.length) return null;
+            const meta = TIPO_LABEL[tipo];
+            return (
+              <div key={tipo}>
+                <span className={cn('inline-block text-[10px] font-black uppercase tracking-widest border rounded-full px-2.5 py-0.5 mb-2', meta.color)}>
+                  {meta.label}
+                </span>
+                <div className="space-y-2">
+                  {grupo.map((q, i) => (
+                    <div key={i} className="bg-zinc-50 rounded-xl px-4 py-3 border border-zinc-100">
+                      <p className="text-sm font-semibold text-zinc-800">{q.pregunta}</p>
+                      {q.tip && (
+                        <p className="text-xs text-indigo-600 mt-1.5 flex items-start gap-1">
+                          <span className="shrink-0 font-bold">💡</span> {q.tip}
+                        </p>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              );
-            })}
-          </div>
-        )}
+              </div>
+            );
+          })}
+        </div>
       </Card>
+      )}
     </div>
   );
 };
@@ -2316,7 +2282,7 @@ export default function App() {
                     <h2 className="text-2xl sm:text-4xl font-black text-zinc-900 mb-2">Exporta tu <span className="text-indigo-600 italic font-serif">CV</span></h2>
                     <p className="text-zinc-500 font-medium text-sm sm:text-base">Elige el template y descarga tu PDF profesional</p>
                   </div>
-                  <ExportStep cv={adaptedCV} analysis={analysis} language={language} cvText={cvText} jdText={jdText} onBack={() => setStep(3)} />
+                  <ExportStep cv={adaptedCV} analysis={analysis} language={language} onBack={() => setStep(3)} />
                 </motion.div>
               )}
             </AnimatePresence>
