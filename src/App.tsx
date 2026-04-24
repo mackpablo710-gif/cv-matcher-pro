@@ -8,7 +8,7 @@ import {
   DollarSign, Package, Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { supabase, signInWithEmail, signUpWithEmail, signOut, signInWithGoogle } from './lib/supabase';
+import { supabase, signInWithEmail, signUpWithEmail, signOut, signInWithGoogle, resetPasswordForEmail, updatePassword } from './lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
 import { extractPdfText, getInitialMatch, adaptCV, getInterviewQuestions } from './services/apiClient';
 import { jsPDF } from 'jspdf';
@@ -521,33 +521,124 @@ async function generateWordDoc(cv: any, language: string) {
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
+// ─── Reset Password Screen ────────────────────────────────────────────────────
+
+const ResetPasswordScreen = ({ onDone }: { onDone: () => void }) => {
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password.length < 6) return setError('La contraseña debe tener al menos 6 caracteres.');
+    if (password !== confirm) return setError('Las contraseñas no coinciden.');
+    setLoading(true); setError(null);
+    try {
+      const { error } = await updatePassword(password);
+      if (error) throw error;
+      setDone(true);
+      setTimeout(onDone, 2500);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-6">
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-3xl shadow-xl p-10 max-w-md w-full">
+        <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
+          <Lock className="w-8 h-8 text-indigo-600" />
+        </div>
+        {done ? (
+          <div className="text-center">
+            <h2 className="text-2xl font-black text-zinc-900 mb-2">¡Contraseña actualizada!</h2>
+            <p className="text-zinc-500">Serás redirigido en un momento…</p>
+          </div>
+        ) : (
+          <>
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-black text-zinc-900 mb-2">Crear nueva contraseña</h2>
+              <p className="text-zinc-500 text-sm">Elige una contraseña segura de al menos 6 caracteres.</p>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <Input label="Nueva contraseña" type="password" placeholder="••••••••" icon={Lock} value={password} onChange={(e: any) => setPassword(e.target.value)} required />
+              <Input label="Confirmar contraseña" type="password" placeholder="••••••••" icon={Lock} value={confirm} onChange={(e: any) => setConfirm(e.target.value)} required />
+              {error && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2 text-red-600 text-sm font-semibold">
+                  <AlertCircle className="w-4 h-4 shrink-0" /><span>{error}</span>
+                </motion.div>
+              )}
+              <Button type="submit" className="w-full py-3.5" loading={loading}>Guardar nueva contraseña</Button>
+            </form>
+          </>
+        )}
+      </motion.div>
+    </div>
+  );
+};
+
 // ─── Auth Screen ──────────────────────────────────────────────────────────────
 
+type AuthView = 'login' | 'register' | 'forgot' | 'forgot_sent' | 'confirm';
+
+const AuthLeftPanel = () => (
+  <div className="relative hidden lg:flex flex-col justify-between p-12 bg-zinc-900 overflow-hidden">
+    <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/80 to-zinc-900" />
+    <div className="relative z-10 flex items-center gap-3">
+      <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center">
+        <Zap className="w-5 h-5 text-white fill-white" />
+      </div>
+      <span className="text-white font-black text-xl tracking-tight">CV Matcher Pro</span>
+    </div>
+    <div className="relative z-10 space-y-8">
+      <div>
+        <h1 className="text-5xl font-black text-white leading-none mb-4">Tu próximo<br />trabajo empieza<br /><span className="text-indigo-400 italic font-serif">aquí.</span></h1>
+        <p className="text-zinc-400 text-lg font-medium leading-relaxed">IA avanzada que adapta tu CV a cualquier oferta en segundos. Múltiples CVs, análisis de match y exportación profesional.</p>
+      </div>
+      <div className="space-y-4">
+        {[{ icon: Target, text: 'Match Score de alta precisión' }, { icon: Shield, text: 'Optimización ATS garantizada' }, { icon: Layers, text: 'Múltiples CVs maestros' }].map(({ icon: Icon, text }) => (
+          <div key={text} className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-indigo-600/20 rounded-xl flex items-center justify-center"><Icon className="w-4 h-4 text-indigo-400" /></div>
+            <span className="text-zinc-300 font-medium">{text}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+    <div className="relative z-10 text-zinc-500 text-sm font-medium">© 2026 CV Matcher Pro</div>
+  </div>
+);
+
 const AuthScreen = ({ onAuth }: { onAuth: () => void }) => {
-  const [isLogin, setIsLogin] = useState(true);
+  const [view, setView] = useState<AuthView>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
+
+  const reset = (v: AuthView) => { setView(v); setError(null); };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true); setError(null);
     try {
-      if (isLogin) {
+      if (view === 'login') {
         const { error } = await signInWithEmail(email, password);
         if (error) throw error;
         onAuth();
-      } else {
+      } else if (view === 'register') {
         const { data, error } = await signUpWithEmail(email, password, name);
         if (error) throw error;
-        if (data.user && !data.session) {
-          setShowConfirm(true);
-        } else {
-          onAuth();
-        }
+        if (data.user && !data.session) setView('confirm');
+        else onAuth();
+      } else if (view === 'forgot') {
+        const { error } = await resetPasswordForEmail(email);
+        if (error) throw error;
+        setView('forgot_sent');
       }
     } catch (err: any) {
       setError(err.message);
@@ -556,12 +647,10 @@ const AuthScreen = ({ onAuth }: { onAuth: () => void }) => {
     }
   };
 
-  const handleGoogle = async () => {
-    setLoading(true);
-    await signInWithGoogle();
-  };
+  const handleGoogle = async () => { setLoading(true); await signInWithGoogle(); };
 
-  if (showConfirm) {
+  // ── Confirmation sent (register) ──
+  if (view === 'confirm') {
     return (
       <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-6">
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-3xl shadow-xl p-10 max-w-md w-full text-center">
@@ -571,10 +660,26 @@ const AuthScreen = ({ onAuth }: { onAuth: () => void }) => {
           <h2 className="text-2xl font-black text-zinc-900 mb-2">Confirma tu cuenta</h2>
           <p className="text-zinc-500 mb-2">Te enviamos un enlace de confirmación a:</p>
           <p className="font-black text-indigo-600 mb-6">{email}</p>
-          <p className="text-sm text-zinc-400 mb-8">Revisa tu bandeja de entrada (y la carpeta spam). Al hacer click en el enlace serás redirigido aquí para iniciar sesión.</p>
-          <Button variant="outline" className="w-full" onClick={() => { setShowConfirm(false); setIsLogin(true); }}>
-            Ya confirmé — Iniciar sesión
-          </Button>
+          <p className="text-sm text-zinc-400 mb-8">Revisa tu bandeja de entrada (y la carpeta spam). Al hacer click en el enlace serás redirigido aquí.</p>
+          <Button variant="outline" className="w-full" onClick={() => reset('login')}>Ya confirmé — Iniciar sesión</Button>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // ── Recovery email sent ──
+  if (view === 'forgot_sent') {
+    return (
+      <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-6">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-3xl shadow-xl p-10 max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <Mail className="w-8 h-8 text-emerald-600" />
+          </div>
+          <h2 className="text-2xl font-black text-zinc-900 mb-2">Revisa tu email</h2>
+          <p className="text-zinc-500 mb-2">Te enviamos un enlace para restablecer tu contraseña a:</p>
+          <p className="font-black text-indigo-600 mb-6">{email}</p>
+          <p className="text-sm text-zinc-400 mb-8">El enlace expira en 1 hora. Revisa también la carpeta spam.</p>
+          <Button variant="outline" className="w-full" onClick={() => reset('login')}>Volver al inicio de sesión</Button>
         </motion.div>
       </div>
     );
@@ -582,57 +687,63 @@ const AuthScreen = ({ onAuth }: { onAuth: () => void }) => {
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
-      <div className="relative hidden lg:flex flex-col justify-between p-12 bg-zinc-900 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/80 to-zinc-900" />
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center">
-            <Zap className="w-5 h-5 text-white fill-white" />
-          </div>
-          <span className="text-white font-black text-xl tracking-tight">CV Matcher Pro</span>
-        </div>
-        <div className="relative z-10 space-y-8">
-          <div>
-            <h1 className="text-5xl font-black text-white leading-none mb-4">Tu próximo<br />trabajo empieza<br /><span className="text-indigo-400 italic font-serif">aquí.</span></h1>
-            <p className="text-zinc-400 text-lg font-medium leading-relaxed">IA avanzada que adapta tu CV a cualquier oferta en segundos. Múltiples CVs, análisis de match y exportación profesional.</p>
-          </div>
-          <div className="space-y-4">
-            {[{ icon: Target, text: 'Match Score de alta precisión' }, { icon: Shield, text: 'Optimización ATS garantizada' }, { icon: Layers, text: 'Múltiples CVs maestros' }].map(({ icon: Icon, text }) => (
-              <div key={text} className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-indigo-600/20 rounded-xl flex items-center justify-center"><Icon className="w-4 h-4 text-indigo-400" /></div>
-                <span className="text-zinc-300 font-medium">{text}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="relative z-10 text-zinc-500 text-sm font-medium">© 2026 CV Matcher Pro</div>
-      </div>
+      <AuthLeftPanel />
       <div className="flex items-center justify-center p-8 bg-zinc-50/50">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
+        <motion.div key={view} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
           <div className="text-center mb-10">
-            <h2 className="text-4xl font-black text-zinc-900 mb-2">{isLogin ? 'Bienvenido' : 'Crear cuenta'}</h2>
-            <p className="text-zinc-500 font-medium">{isLogin ? 'Ingresa para continuar' : 'Únete en segundos'}</p>
+            <h2 className="text-4xl font-black text-zinc-900 mb-2">
+              {view === 'login' ? 'Bienvenido' : view === 'register' ? 'Crear cuenta' : '¿Olvidaste tu contraseña?'}
+            </h2>
+            <p className="text-zinc-500 font-medium">
+              {view === 'login' ? 'Ingresa para continuar' : view === 'register' ? 'Únete en segundos' : 'Te enviamos un enlace para restablecerla'}
+            </p>
           </div>
           <Card className="shadow-xl shadow-zinc-200/40 border-none">
             <form onSubmit={handleSubmit} className="space-y-4">
-              {!isLogin && <Input label="Nombre" placeholder="Tu nombre" icon={UserIcon} value={name} onChange={(e: any) => setName(e.target.value)} required />}
+              {view === 'register' && <Input label="Nombre" placeholder="Tu nombre" icon={UserIcon} value={name} onChange={(e: any) => setName(e.target.value)} required />}
               <Input label="Email" type="email" placeholder="tu@email.com" icon={Mail} value={email} onChange={(e: any) => setEmail(e.target.value)} required />
-              <Input label="Contraseña" type="password" placeholder="••••••••" icon={Lock} value={password} onChange={(e: any) => setPassword(e.target.value)} required />
+              {view !== 'forgot' && (
+                <div>
+                  <Input label="Contraseña" type="password" placeholder="••••••••" icon={Lock} value={password} onChange={(e: any) => setPassword(e.target.value)} required />
+                  {view === 'login' && (
+                    <div className="text-right mt-1.5">
+                      <button type="button" onClick={() => reset('forgot')} className="text-xs text-zinc-400 hover:text-indigo-600 font-semibold transition-colors">
+                        ¿Olvidaste tu contraseña?
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
               {error && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-2 text-red-600 text-sm font-semibold">
                   <AlertCircle className="w-4 h-4 shrink-0" /><span>{error}</span>
                 </motion.div>
               )}
-              <Button type="submit" className="w-full py-3.5" loading={loading}>{isLogin ? 'Iniciar sesión' : 'Crear cuenta'}</Button>
+              <Button type="submit" className="w-full py-3.5" loading={loading}>
+                {view === 'login' ? 'Iniciar sesión' : view === 'register' ? 'Crear cuenta' : 'Enviar enlace de recuperación'}
+              </Button>
             </form>
-            <div className="relative my-6"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-100" /></div><div className="relative flex justify-center text-xs"><span className="bg-white px-4 text-zinc-400 font-bold uppercase tracking-widest">O</span></div></div>
-            <Button variant="white" className="w-full py-3.5" onClick={handleGoogle} disabled={loading}>
-              <Chrome className="w-4 h-4 text-indigo-600" /> Continuar con Google
-            </Button>
+
+            {view !== 'forgot' && (
+              <>
+                <div className="relative my-6"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-zinc-100" /></div><div className="relative flex justify-center text-xs"><span className="bg-white px-4 text-zinc-400 font-bold uppercase tracking-widest">O</span></div></div>
+                <Button variant="white" className="w-full py-3.5" onClick={handleGoogle} disabled={loading}>
+                  <Chrome className="w-4 h-4 text-indigo-600" /> Continuar con Google
+                </Button>
+              </>
+            )}
+
             <p className="text-center mt-6 text-zinc-500 text-sm font-medium">
-              {isLogin ? '¿No tienes cuenta?' : '¿Ya tienes cuenta?'}
-              <button onClick={() => { setIsLogin(!isLogin); setError(null); }} className="ml-1.5 font-black text-indigo-600 hover:underline">
-                {isLogin ? 'Regístrate' : 'Inicia sesión'}
-              </button>
+              {view === 'forgot' ? (
+                <button onClick={() => reset('login')} className="font-black text-indigo-600 hover:underline">← Volver al inicio de sesión</button>
+              ) : (
+                <>
+                  {view === 'login' ? '¿No tienes cuenta?' : '¿Ya tienes cuenta?'}
+                  <button onClick={() => reset(view === 'login' ? 'register' : 'login')} className="ml-1.5 font-black text-indigo-600 hover:underline">
+                    {view === 'login' ? 'Regístrate' : 'Inicia sesión'}
+                  </button>
+                </>
+              )}
             </p>
           </Card>
         </motion.div>
@@ -1674,6 +1785,7 @@ export default function App() {
   const [profile, setProfile] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [view, setView] = useState<'dashboard' | 'workflow'>('dashboard');
+  const [isRecoveringPassword, setIsRecoveringPassword] = useState(false);
   const alreadyLoggedInRef = useRef(false);
 
   const [step, setStep] = useState(0);
@@ -1708,6 +1820,10 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecoveringPassword(true);
+        return;
+      }
       if (session?.user) {
         loadProfile(session.user.id);
         supabase.from('profiles').update({ last_active_at: new Date().toISOString() }).eq('id', session.user.id);
@@ -1900,6 +2016,8 @@ export default function App() {
   );
 
   if (!user) return <AuthScreen onAuth={() => setView('dashboard')} />;
+
+  if (isRecoveringPassword) return <ResetPasswordScreen onDone={() => setIsRecoveringPassword(false)} />;
 
   return (
     <div className="min-h-screen bg-zinc-50">

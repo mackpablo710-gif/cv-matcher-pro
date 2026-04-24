@@ -37,3 +37,11 @@ export const signUpWithEmail = (email: string, password: string, name: string) =
 export const signOut = () => supabase.auth.signOut();
 
 export const getSession = () => supabase.auth.getSession();
+
+export const resetPasswordForEmail = (email: string) =>
+  supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${APP_URL}?recovery=true`,
+  });
+
+export const updatePassword = (newPassword: string) =>
+  supabase.auth.updateUser({ password: newPassword });
