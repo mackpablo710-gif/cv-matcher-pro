@@ -866,7 +866,7 @@ const CreditsBanner = ({ credits, onBuy }: { credits: number; onBuy: () => void 
       <div className="flex items-center gap-3">
         <CreditCard className={cn('w-5 h-5', credits === 0 ? 'text-red-500' : 'text-amber-600')} />
         <p className={cn('text-sm font-semibold', credits === 0 ? 'text-red-700' : 'text-amber-800')}>
-          {credits === 0 ? 'Sin adaptaciones disponibles. Compra un paquete para continuar.' : `Te quedan ${credits} adaptación${credits !== 1 ? 'es' : ''}. ¡Recarga pronto!`}
+          {credits < 0.5 ? 'Sin créditos disponibles. Compra un paquete para continuar.' : `Te quedan ${credits} crédito${credits !== 1 ? 's' : ''}. ¡Recarga pronto!`}
         </p>
       </div>
       <Button size="sm" onClick={onBuy} variant={credits === 0 ? 'primary' : 'outline'}>
@@ -1928,7 +1928,7 @@ export default function App() {
 
   const handleCalcMatch = async () => {
     if (!cvText.trim() || !jdText.trim()) { setError('Necesitas un CV y una descripción del cargo.'); return; }
-    if (credits <= 0 && !isAdmin) { setShowPackages(true); return; }
+    if (credits < 0.5 && !isAdmin) { setShowPackages(true); return; }
     setIsProcessing(true); setError(null); setProgress(10); setLoadingMsg('Preparando análisis...');
     let timer: any = null;
     try {
@@ -1939,7 +1939,6 @@ export default function App() {
       clearInterval(timer); timer = null;
       setProgress(100); setLoadingMsg('¡Análisis completo!');
       setInitialMatch(match);
-      // Save initial match record immediately (no final_score yet)
       if (user) {
         const detectedTitle = match?.job_title || getJobTitle(jdText);
         const { data } = await supabase.from('adaptations').insert({
@@ -1948,6 +1947,12 @@ export default function App() {
           initial_score: match?.score || 0, final_score: 0,
         }).select('id').single();
         initialMatchRecordId.current = data?.id || null;
+        // Deduct 0.5 credits for the initial match
+        if (!isAdmin) {
+          const newCredits = Math.max(0, credits - 0.5);
+          await supabase.from('profiles').update({ credits: newCredits }).eq('id', user.id);
+          setProfile((p: any) => ({ ...p, credits: newCredits }));
+        }
       }
       setStep(1);
     } catch (err: any) { setError(err.message); }
@@ -1956,7 +1961,7 @@ export default function App() {
 
   const handleAdapt = async () => {
     const highScore = (initialMatch?.score || 0) >= 90;
-    if (credits <= 0 && !isAdmin && !highScore) { setShowPackages(true); return; }
+    if (credits < 0.5 && !isAdmin && !highScore) { setShowPackages(true); return; }
     setIsProcessing(true); setError(null); setProgress(10); setLoadingMsg('Analizando CV y descripción...');
     let timer: any = null;
     try {
@@ -2008,9 +2013,9 @@ export default function App() {
 
         // Don't consume credit if initial match was already ≥90% (no real adaptation needed)
         const highScoreFree = (initialMatch?.score || 0) >= 90;
-        // Only consume credit if result is valid AND it's not a free retry AND not a high-score match
+        // Deduct 0.5 for adaptation unless: admin, free retry, or high score match
         if (!isAdmin && hasValidResult && !freeRetryRef.current && !highScoreFree) {
-          const newCredits = Math.max(0, credits - 1);
+          const newCredits = Math.max(0, credits - 0.5);
           await supabase.from('profiles').update({ credits: newCredits }).eq('id', user.id);
           setProfile((p: any) => ({ ...p, credits: newCredits }));
         }
@@ -2152,12 +2157,12 @@ export default function App() {
                         className="flex-1 min-h-[200px] px-5 pb-5 text-sm text-zinc-700 outline-none resize-none placeholder:text-zinc-300 font-medium" />
                     </Card>
                   </div>
-                  {credits <= 0 && !isAdmin && (
+                  {credits < 0.5 && !isAdmin && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3">
                       <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
                       <div className="flex-1">
                         <p className="text-sm font-bold text-red-700">Sin créditos disponibles</p>
-                        <p className="text-xs text-red-600">Necesitas al menos 1 crédito para hacer el match inicial.</p>
+                        <p className="text-xs text-red-600">Necesitas al menos 0.5 créditos para hacer el match inicial.</p>
                       </div>
                       <button onClick={() => setShowPackages(true)} className="text-xs font-black text-red-700 underline whitespace-nowrap">Ver paquetes</button>
                     </motion.div>
@@ -2173,9 +2178,12 @@ export default function App() {
                     </motion.div>
                   )}
                   <div className="flex justify-center">
-                    <Button size="lg" onClick={handleCalcMatch} loading={isProcessing} disabled={!cvText || !jdText || (credits <= 0 && !isAdmin)} className="px-12">
-                      Calcular Match <Target className="w-5 h-5" />
-                    </Button>
+                    <div className="text-center">
+                      <Button size="lg" onClick={handleCalcMatch} loading={isProcessing} disabled={!cvText || !jdText || (credits < 0.5 && !isAdmin)} className="px-12">
+                        Calcular Match <Target className="w-5 h-5" />
+                      </Button>
+                      {!isAdmin && credits >= 0.5 && <p className="text-xs text-zinc-400 mt-2">Costo: 0.5 créditos</p>}
+                    </div>
                   </div>
                 </motion.div>
               )}
@@ -2238,16 +2246,16 @@ export default function App() {
                     <h2 className="text-2xl sm:text-4xl font-black text-zinc-900 mb-2">Idioma del <span className="text-indigo-600 italic font-serif">CV adaptado</span></h2>
                     <p className="text-zinc-500 font-medium text-sm sm:text-base">¿En qué idioma quieres el CV resultante?</p>
                   </div>
-                  {credits <= 0 && !isAdmin && (initialMatch?.score || 0) < 90 && (
+                  {credits < 0.5 && !isAdmin && (initialMatch?.score || 0) < 90 && (
                     <div className="max-w-md mx-auto mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3">
                       <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
                       <div>
-                        <p className="text-sm font-bold text-red-700">Sin adaptaciones disponibles</p>
+                        <p className="text-sm font-bold text-red-700">Sin créditos disponibles</p>
                         <button onClick={() => setShowPackages(true)} className="text-xs text-red-600 underline font-medium">Ver paquetes</button>
                       </div>
                     </div>
                   )}
-                  {credits <= 0 && !isAdmin && (initialMatch?.score || 0) >= 90 && (
+                  {(initialMatch?.score || 0) >= 90 && !isAdmin && (
                     <div className="max-w-md mx-auto mb-6 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-3">
                       <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
                       <p className="text-sm font-semibold text-emerald-700">Tu match es excelente — esta adaptación es <strong>gratuita</strong>.</p>
@@ -2282,11 +2290,16 @@ export default function App() {
                         </div>
                       </motion.div>
                     )}
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 items-center">
                       <Button variant="outline" onClick={() => setStep(1)}><ChevronLeft className="w-4 h-4" /> Volver</Button>
-                      <Button className="flex-1" size="lg" onClick={handleAdapt} loading={isProcessing} disabled={credits <= 0 && !isAdmin && (initialMatch?.score || 0) < 90}>
-                        {isProcessing ? '' : 'Adaptar CV con IA'} {!isProcessing && <Zap className="w-4 h-4" />}
-                      </Button>
+                      <div className="flex-1">
+                        <Button className="w-full" size="lg" onClick={handleAdapt} loading={isProcessing} disabled={credits < 0.5 && !isAdmin && (initialMatch?.score || 0) < 90}>
+                          {isProcessing ? '' : 'Adaptar CV con IA'} {!isProcessing && <Zap className="w-4 h-4" />}
+                        </Button>
+                        {!isAdmin && (initialMatch?.score || 0) < 90 && (
+                          <p className="text-xs text-zinc-400 text-center mt-1.5">Costo: 0.5 créditos</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </motion.div>
