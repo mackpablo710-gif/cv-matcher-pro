@@ -981,11 +981,16 @@ const Dashboard = ({ userId, credits, onLoadAdaptation, onNew, onBuy }: {
   const [filtered, setFiltered] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [editingCompany, setEditingCompany] = useState<string | null>(null);
+  const [companyDraft, setCompanyDraft] = useState('');
 
   useEffect(() => { fetchHistory(); }, []);
   useEffect(() => {
     if (!search) { setFiltered(items); return; }
-    setFiltered(items.filter(i => i.job_title?.toLowerCase().includes(search.toLowerCase())));
+    const q = search.toLowerCase();
+    setFiltered(items.filter(i =>
+      i.job_title?.toLowerCase().includes(q) || i.company_name?.toLowerCase().includes(q)
+    ));
   }, [search, items]);
 
   const fetchHistory = async () => {
@@ -993,6 +998,13 @@ const Dashboard = ({ userId, credits, onLoadAdaptation, onNew, onBuy }: {
     const { data } = await supabase.from('adaptations').select('*').eq('user_id', userId).order('created_at', { ascending: false });
     setItems(data || []); setFiltered(data || []);
     setLoading(false);
+  };
+
+  const saveCompany = async (id: string, name: string) => {
+    const trimmed = name.trim();
+    await supabase.from('adaptations').update({ company_name: trimmed }).eq('id', id);
+    setItems(prev => prev.map(i => i.id === id ? { ...i, company_name: trimmed } : i));
+    setEditingCompany(null);
   };
 
   const avgScore = items.length ? Math.round(items.reduce((a, i) => a + (i.initial_score || 0), 0) / items.length) : 0;
@@ -1060,16 +1072,45 @@ const Dashboard = ({ userId, credits, onLoadAdaptation, onNew, onBuy }: {
                 const isPending = !item.final_score || item.final_score === 0;
                 const scoreColor = item.final_score >= 80 ? 'text-emerald-600' : item.final_score >= 60 ? 'text-amber-600' : 'text-red-500';
                 return (
-                  <div key={item.id} onClick={() => onLoadAdaptation(item)} className="flex items-center gap-3 px-4 sm:px-6 py-4 hover:bg-zinc-50 cursor-pointer transition-colors">
-                    <div className={cn('w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0', isPending ? 'bg-amber-50' : 'bg-indigo-50')}>
+                  <div key={item.id} className="flex items-center gap-3 px-4 sm:px-6 py-4 hover:bg-zinc-50 transition-colors">
+                    <div onClick={() => onLoadAdaptation(item)} className={cn('w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 cursor-pointer', isPending ? 'bg-amber-50' : 'bg-indigo-50')}>
                       <FileText className={cn('w-4 h-4 sm:w-5 sm:h-5', isPending ? 'text-amber-500' : 'text-indigo-500')} />
                     </div>
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onLoadAdaptation(item)}>
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-zinc-900 truncate">{item.job_title || 'Cargo sin nombre'}</p>
                         {isPending && <span className="shrink-0 text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Pendiente</span>}
                       </div>
-                      <p className="text-xs text-zinc-400">{new Date(item.created_at).toLocaleDateString('es-CL')} · {item.language || 'Español'}</p>
+                      {/* Company name row */}
+                      {editingCompany === item.id ? (
+                        <div className="flex items-center gap-1.5 mt-1" onClick={e => e.stopPropagation()}>
+                          <input
+                            autoFocus
+                            value={companyDraft}
+                            onChange={e => setCompanyDraft(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') saveCompany(item.id, companyDraft); if (e.key === 'Escape') setEditingCompany(null); }}
+                            onBlur={() => saveCompany(item.id, companyDraft)}
+                            placeholder="Nombre de la empresa"
+                            className="text-xs border border-indigo-300 rounded-lg px-2 py-0.5 outline-none focus:ring-2 focus:ring-indigo-200 w-40"
+                          />
+                          <span className="text-[10px] text-zinc-400">Enter para guardar</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 mt-0.5 group/company">
+                          {item.company_name
+                            ? <p className="text-xs text-zinc-500 truncate">{item.company_name}</p>
+                            : <p className="text-xs text-zinc-300 italic">Sin empresa</p>
+                          }
+                          <button
+                            onClick={e => { e.stopPropagation(); setCompanyDraft(item.company_name || ''); setEditingCompany(item.id); }}
+                            className="opacity-0 group-hover/company:opacity-100 transition-opacity p-0.5 rounded hover:bg-zinc-200"
+                            title="Editar empresa"
+                          >
+                            <Pencil className="w-3 h-3 text-zinc-400" />
+                          </button>
+                        </div>
+                      )}
+                      <p className="text-xs text-zinc-400 mt-0.5">{new Date(item.created_at).toLocaleDateString('es-CL')} · {item.language || 'Español'}</p>
                     </div>
                     <div className="flex items-center gap-2 sm:gap-4 shrink-0">
                       <div className="text-center">
@@ -1901,8 +1942,8 @@ export default function App() {
       if (user) {
         const detectedTitle = match?.job_title || getJobTitle(jdText);
         const { data } = await supabase.from('adaptations').insert({
-          user_id: user.id, job_title: detectedTitle, job_description: jdText,
-          cv_text: cvText, language, initial_match: match,
+          user_id: user.id, job_title: detectedTitle, company_name: match?.company_name || '',
+          job_description: jdText, cv_text: cvText, language, initial_match: match,
           initial_score: match?.score || 0, final_score: 0,
         }).select('id').single();
         initialMatchRecordId.current = data?.id || null;
@@ -1954,7 +1995,8 @@ export default function App() {
           }).eq('id', initialMatchRecordId.current);
         } else {
           await supabase.from('adaptations').insert({
-            user_id: user.id, job_title: initialMatch?.job_title || getJobTitle(jdText), job_description: jdText,
+            user_id: user.id, job_title: initialMatch?.job_title || getJobTitle(jdText),
+            company_name: initialMatch?.company_name || '', job_description: jdText,
             cv_text: cvText, language, initial_match: initialMatch,
             initial_score: initialMatch?.score || 0, final_score: finalScore,
             adapted_content: normalized, analysis: guardedAnalysis,
