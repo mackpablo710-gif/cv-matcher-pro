@@ -1678,10 +1678,21 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
                             <div className="col-span-2 min-w-0">
                               {u.full_name && <p className="font-semibold text-zinc-900 truncate text-sm">{u.full_name}</p>}
                               <p className={cn('truncate text-sm', u.full_name ? 'text-zinc-400 text-xs' : 'font-semibold text-zinc-900')}>{u.email}</p>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <p className="text-xs text-zinc-400">{new Date(u.created_at).toLocaleDateString('es-CL')}</p>
+                              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                <p className="text-xs text-zinc-400">Registro: {new Date(u.created_at).toLocaleDateString('es-CL')}</p>
                                 {u.is_admin && <Badge color="indigo">Admin</Badge>}
                               </div>
+                              <p className="text-xs mt-0.5">
+                                <span className="text-zinc-400">Última conexión: </span>
+                                {u.last_active_at
+                                  ? <span className={cn('font-semibold', new Date(u.last_active_at) > new Date(Date.now() - 24 * 60 * 60 * 1000) ? 'text-emerald-600' : 'text-zinc-500')}>
+                                      {new Date(u.last_active_at).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                                      {' '}
+                                      {new Date(u.last_active_at).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  : <span className="text-zinc-300">Sin datos</span>
+                                }
+                              </p>
                             </div>
                             <div>
                               <span className={cn('text-sm font-black', u.credits <= 2 ? 'text-red-500' : 'text-zinc-900')}>{u.credits}</span>
