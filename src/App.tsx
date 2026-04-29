@@ -231,19 +231,19 @@ function generateClassicPDF(cv: any, language: string) {
     if (y + needed > H - BOTTOM_MARGIN) { doc.addPage(); page++; y = 16; }
   };
 
-  doc.setFillColor(79, 70, 229); doc.rect(0, 0, W, 44, 'F');
-  doc.setTextColor(255, 255, 255); doc.setFontSize(22); doc.setFont('helvetica', 'bold');
+  doc.setTextColor(20, 20, 20); doc.setFontSize(22); doc.setFont('helvetica', 'bold');
   doc.text(cv.personal_info.name || 'Nombre', ml, 18);
-  doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
   const contactItems = [cv.personal_info.email, cv.personal_info.phone, cv.personal_info.location].filter(Boolean);
-  doc.text(contactItems.join('  ·  '), ml, 27);
-  y = 54;
+  doc.text(contactItems.join('  ·  '), ml, 26);
+  doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.3); doc.line(ml, 30, mr, 30);
+  y = 38;
 
   const section = (title: string) => {
     checkPageBreak(12);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(79, 70, 229);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(20, 20, 20);
     doc.text(title.toUpperCase(), ml, y); y += 1.5;
-    doc.setDrawColor(79, 70, 229); doc.setLineWidth(0.4); doc.line(ml, y, mr, y); y += 5;
+    doc.setDrawColor(20, 20, 20); doc.setLineWidth(0.4); doc.line(ml, y, mr, y); y += 5;
     doc.setTextColor(30, 30, 30);
   };
 
@@ -319,20 +319,20 @@ function generateModernPDF(cv: any, language: string) {
   const LINE_H = 4.5; const BOTTOM_MARGIN = 18;
   let ys = 0; let ym = 0;
 
-  const drawSidebarBg = () => { doc.setFillColor(24, 24, 27); doc.rect(0, 0, sideW, H, 'F'); };
+  const drawSidebarBg = () => { doc.setFillColor(240, 240, 240); doc.rect(0, 0, sideW, H, 'F'); };
   drawSidebarBg();
-  doc.setFillColor(79, 70, 229); doc.circle(sideW / 2, 28, 14, 'F');
+  doc.setFillColor(20, 20, 20); doc.circle(sideW / 2, 28, 14, 'F');
   doc.setTextColor(255, 255, 255); doc.setFontSize(16); doc.setFont('helvetica', 'bold');
   const initial = (cv.personal_info.name || 'U')[0].toUpperCase();
   doc.text(initial, sideW / 2 - 3.5, 32); ys = 52;
-  doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
+  doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(20, 20, 20);
   const nameLines = doc.splitTextToSize(cv.personal_info.name || '', sideW - 10);
   doc.text(nameLines, 5, ys); ys += nameLines.length * 5 + 8;
 
   const sideSection = (title: string) => {
-    doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(140, 140, 160);
+    doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(80, 80, 80);
     doc.text(title.toUpperCase(), 5, ys); ys += 4;
-    doc.setTextColor(210, 210, 220); doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+    doc.setTextColor(40, 40, 40); doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
   };
   const sideText = (text: string) => {
     const lines = doc.splitTextToSize(text, sideW - 10);
@@ -360,9 +360,9 @@ function generateModernPDF(cv: any, language: string) {
 
   const mainSection = (title: string) => {
     checkMainBreak(14);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(79, 70, 229);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(20, 20, 20);
     doc.text(title.toUpperCase(), mainX, ym); ym += 2;
-    doc.setDrawColor(79, 70, 229); doc.setLineWidth(0.3); doc.line(mainX, ym, W - 12, ym); ym += 5;
+    doc.setDrawColor(20, 20, 20); doc.setLineWidth(0.3); doc.line(mainX, ym, W - 12, ym); ym += 5;
     doc.setTextColor(30, 30, 30);
   };
 
@@ -415,7 +415,7 @@ async function generateWordDoc(cv: any, language: string) {
 
   const mkHeading = (text: string) => new Paragraph({
     text, heading: HeadingLevel.HEADING_2,
-    border: { bottom: { color: '4f46e5', style: BorderStyle.SINGLE, size: 4 } },
+    border: { bottom: { color: '000000', style: BorderStyle.SINGLE, size: 4 } },
     spacing: { before: 280, after: 120 },
   });
 
@@ -444,7 +444,7 @@ async function generateWordDoc(cv: any, language: string) {
 
   // Header
   sections.push(new Paragraph({
-    children: [new TextRun({ text: cv.personal_info?.name || '', bold: true, size: 36, color: '4f46e5' })],
+    children: [new TextRun({ text: cv.personal_info?.name || '', bold: true, size: 36, color: '000000' })],
     alignment: AlignmentType.LEFT, spacing: { after: 120 },
   }));
   const contactParts = [cv.personal_info?.email, cv.personal_info?.phone, cv.personal_info?.location].filter(Boolean);
@@ -507,7 +507,7 @@ async function generateWordDoc(cv: any, language: string) {
     styles: {
       paragraphStyles: [{
         id: 'Heading2', name: 'Heading 2',
-        run: { color: '4f46e5', bold: true, size: 22 },
+        run: { color: '000000', bold: true, size: 22 },
       }],
     },
     sections: [{ properties: { page: { margin: { top: 900, bottom: 900, left: 900, right: 900 } } }, children: sections }],
