@@ -1955,7 +1955,8 @@ export default function App() {
   };
 
   const handleAdapt = async () => {
-    if (credits <= 0 && !isAdmin) { setShowPackages(true); return; }
+    const highScore = (initialMatch?.score || 0) >= 90;
+    if (credits <= 0 && !isAdmin && !highScore) { setShowPackages(true); return; }
     setIsProcessing(true); setError(null); setProgress(10); setLoadingMsg('Analizando CV y descripción...');
     let timer: any = null;
     try {
@@ -2005,8 +2006,10 @@ export default function App() {
         }
         initialMatchRecordId.current = null;
 
-        // Only consume credit if result is valid AND it's not a free retry of a failed adaptation
-        if (!isAdmin && hasValidResult && !freeRetryRef.current) {
+        // Don't consume credit if initial match was already ≥90% (no real adaptation needed)
+        const highScoreFree = (initialMatch?.score || 0) >= 90;
+        // Only consume credit if result is valid AND it's not a free retry AND not a high-score match
+        if (!isAdmin && hasValidResult && !freeRetryRef.current && !highScoreFree) {
           const newCredits = Math.max(0, credits - 1);
           await supabase.from('profiles').update({ credits: newCredits }).eq('id', user.id);
           setProfile((p: any) => ({ ...p, credits: newCredits }));
@@ -2235,13 +2238,19 @@ export default function App() {
                     <h2 className="text-2xl sm:text-4xl font-black text-zinc-900 mb-2">Idioma del <span className="text-indigo-600 italic font-serif">CV adaptado</span></h2>
                     <p className="text-zinc-500 font-medium text-sm sm:text-base">¿En qué idioma quieres el CV resultante?</p>
                   </div>
-                  {credits <= 0 && !isAdmin && (
+                  {credits <= 0 && !isAdmin && (initialMatch?.score || 0) < 90 && (
                     <div className="max-w-md mx-auto mb-6 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3">
                       <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
                       <div>
                         <p className="text-sm font-bold text-red-700">Sin adaptaciones disponibles</p>
                         <button onClick={() => setShowPackages(true)} className="text-xs text-red-600 underline font-medium">Ver paquetes</button>
                       </div>
+                    </div>
+                  )}
+                  {credits <= 0 && !isAdmin && (initialMatch?.score || 0) >= 90 && (
+                    <div className="max-w-md mx-auto mb-6 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-3">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                      <p className="text-sm font-semibold text-emerald-700">Tu match es excelente — esta adaptación es <strong>gratuita</strong>.</p>
                     </div>
                   )}
                   <div className="max-w-md mx-auto">
@@ -2275,7 +2284,7 @@ export default function App() {
                     )}
                     <div className="flex gap-3">
                       <Button variant="outline" onClick={() => setStep(1)}><ChevronLeft className="w-4 h-4" /> Volver</Button>
-                      <Button className="flex-1" size="lg" onClick={handleAdapt} loading={isProcessing} disabled={credits <= 0 && !isAdmin}>
+                      <Button className="flex-1" size="lg" onClick={handleAdapt} loading={isProcessing} disabled={credits <= 0 && !isAdmin && (initialMatch?.score || 0) < 90}>
                         {isProcessing ? '' : 'Adaptar CV con IA'} {!isProcessing && <Zap className="w-4 h-4" />}
                       </Button>
                     </div>
