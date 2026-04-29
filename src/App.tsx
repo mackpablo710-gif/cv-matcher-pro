@@ -1876,7 +1876,7 @@ export default function App() {
         await supabase.from('profiles').insert({
           id: u.id, email: u.email,
           full_name: u.user_metadata?.full_name || '',
-          credits: u.email === 'mackennapablo@hotmail.com' ? 9999 : 2,
+          credits: u.email === 'mackennapablo@hotmail.com' ? 9999 : 1,
           is_admin: u.email === 'mackennapablo@hotmail.com',
         });
         const { data: p2 } = await supabase.from('profiles').select('*').eq('id', u.id).single();
@@ -1928,6 +1928,7 @@ export default function App() {
 
   const handleCalcMatch = async () => {
     if (!cvText.trim() || !jdText.trim()) { setError('Necesitas un CV y una descripción del cargo.'); return; }
+    if (credits <= 0 && !isAdmin) { setShowPackages(true); return; }
     setIsProcessing(true); setError(null); setProgress(10); setLoadingMsg('Preparando análisis...');
     let timer: any = null;
     try {
@@ -2148,6 +2149,16 @@ export default function App() {
                         className="flex-1 min-h-[200px] px-5 pb-5 text-sm text-zinc-700 outline-none resize-none placeholder:text-zinc-300 font-medium" />
                     </Card>
                   </div>
+                  {credits <= 0 && !isAdmin && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3">
+                      <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-red-700">Sin créditos disponibles</p>
+                        <p className="text-xs text-red-600">Necesitas al menos 1 crédito para hacer el match inicial.</p>
+                      </div>
+                      <button onClick={() => setShowPackages(true)} className="text-xs font-black text-red-700 underline whitespace-nowrap">Ver paquetes</button>
+                    </motion.div>
+                  )}
                   {error && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 text-sm font-semibold">
                       <AlertCircle className="w-4 h-4 shrink-0" />{error}
@@ -2159,7 +2170,7 @@ export default function App() {
                     </motion.div>
                   )}
                   <div className="flex justify-center">
-                    <Button size="lg" onClick={handleCalcMatch} loading={isProcessing} disabled={!cvText || !jdText} className="px-12">
+                    <Button size="lg" onClick={handleCalcMatch} loading={isProcessing} disabled={!cvText || !jdText || (credits <= 0 && !isAdmin)} className="px-12">
                       Calcular Match <Target className="w-5 h-5" />
                     </Button>
                   </div>
