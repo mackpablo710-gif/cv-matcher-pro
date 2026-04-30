@@ -532,7 +532,7 @@ const LandingPage = ({ onStart, onAuth }: { onStart: () => void; onAuth: () => v
   const steps = [
     { n: '01', icon: FileText, title: 'Sube tu CV', desc: 'Carga tu currículum en PDF o pégalo como texto. Listo en segundos.' },
     { n: '02', icon: Target, title: 'Pega la oferta laboral', desc: 'Copia la descripción del cargo al que quieres postular.' },
-    { n: '03', icon: Zap, title: 'Análisis inteligente', desc: 'Nuestra IA compara tu experiencia, habilidades y trayectoria con lo que busca la empresa.' },
+    { n: '03', icon: Zap, title: 'Análisis inteligente', desc: 'Comparamos tu experiencia, habilidades y trayectoria con lo que busca la empresa.' },
     { n: '04', icon: RefreshCw, title: 'Optimiza tu CV automáticamente', desc: 'CV JOB reescribe tu CV alineándolo con el cargo: mejora tu resumen, ajusta tu experiencia e incorpora las palabras clave que buscan los reclutadores.' },
     { n: '05', icon: TrendingUp, title: 'Aumenta tus probabilidades', desc: 'Obtendrás una versión optimizada lista para enviar. Más clara, más alineada, más competitiva.' },
   ];
@@ -573,10 +573,6 @@ const LandingPage = ({ onStart, onAuth }: { onStart: () => void; onAuth: () => v
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/30 via-zinc-950 to-zinc-950 pointer-events-none" />
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-indigo-600/10 blur-3xl rounded-full pointer-events-none" />
         <div className="relative max-w-4xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 bg-indigo-600/15 border border-indigo-500/30 rounded-full px-4 py-1.5 mb-8">
-            <Zap className="w-3.5 h-3.5 text-indigo-400 fill-indigo-400" />
-            <span className="text-xs font-bold text-indigo-300 uppercase tracking-widest">IA para tu búsqueda laboral</span>
-          </div>
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black leading-none mb-6">
             ¿Cómo funciona<br />
             <span className="text-indigo-400 italic font-serif">CV JOB?</span>
@@ -634,6 +630,47 @@ const LandingPage = ({ onStart, onAuth }: { onStart: () => void; onAuth: () => v
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ATS Problem */}
+      <section className="py-20 px-6 bg-zinc-900/40">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-10">
+            <p className="text-xs font-black uppercase tracking-widest text-red-400 mb-3">El problema real</p>
+            <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">
+              ❌ El problema no es<br />
+              <span className="text-red-400">tu experiencia</span>
+            </h2>
+            <p className="text-zinc-400 text-lg max-w-2xl mx-auto">
+              Hoy, muchas empresas ya no leen CVs manualmente al inicio.
+            </p>
+          </div>
+          <div className="bg-zinc-900 border border-red-900/40 rounded-2xl p-6 sm:p-8 mb-8">
+            <div className="flex items-start gap-4 mb-6">
+              <span className="text-3xl shrink-0">👉</span>
+              <p className="text-zinc-300 text-base leading-relaxed">
+                <span className="text-white font-bold">Usan sistemas ATS</span> (Applicant Tracking Systems) que filtran candidatos automáticamente por porcentaje de coincidencia con la oferta laboral. Si tu CV no supera el umbral, <span className="text-red-400 font-semibold">nunca llega a ojos humanos.</span>
+              </p>
+            </div>
+            <div className="grid sm:grid-cols-3 gap-4">
+              {[
+                { emoji: '📋', text: 'Tu CV se descarta antes de que alguien lo lea' },
+                { emoji: '🔑', text: 'No usas las palabras clave exactas que busca el sistema' },
+                { emoji: '📊', text: 'Tu match con la oferta es bajo aunque tengas la experiencia' },
+              ].map((item, i) => (
+                <div key={i} className="flex items-start gap-3 bg-red-950/30 border border-red-900/30 rounded-xl p-4">
+                  <span className="text-xl shrink-0">{item.emoji}</span>
+                  <p className="text-sm text-zinc-300 leading-relaxed">{item.text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="text-center">
+            <p className="text-zinc-400 text-base max-w-2xl mx-auto">
+              CV JOB analiza tu CV contra la oferta y lo optimiza para que <span className="text-white font-semibold">superes los filtros ATS</span> y llegues a la etapa de entrevistas.
+            </p>
           </div>
         </div>
       </section>
