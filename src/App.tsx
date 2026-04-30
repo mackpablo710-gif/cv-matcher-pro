@@ -1514,6 +1514,8 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
   const [newCredits, setNewCredits] = useState('');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleteModal, setDeleteModal] = useState<{ userId: string; email: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [userSearch, setUserSearch] = useState('');
 
   useEffect(() => { loadAll(); }, []);
@@ -1558,6 +1560,22 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
     setCreditModal(null); setNewCredits(''); setNote('');
     setSaving(false);
     await loadAll();
+  };
+
+  const deleteUser = async () => {
+    if (!deleteModal) return;
+    setDeleting(true);
+    try {
+      // Get current admin user id from Supabase session
+      const { data: { session } } = await supabase.auth.getSession();
+      await fetch('/api/admin-delete-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_user_id: deleteModal.userId, admin_user_id: session?.user?.id }),
+      });
+      setDeleteModal(null);
+      await loadAll();
+    } finally { setDeleting(false); }
   };
 
   const savePackage = async (id: string) => {
@@ -1702,10 +1720,16 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
                               <span className="text-zinc-400"> / {userAdapts.length}</span>
                               <p className="text-xs text-zinc-400">completas / total</p>
                             </div>
-                            <div>
+                            <div className="flex flex-col gap-1.5">
                               <Button size="sm" variant="outline" onClick={() => setCreditModal({ userId: u.id, email: u.email, name: u.full_name || u.email, current: u.credits })}>
                                 <Plus className="w-3.5 h-3.5" /> Créditos
                               </Button>
+                              {!u.is_admin && (
+                                <Button size="sm" variant="outline" onClick={() => setDeleteModal({ userId: u.id, email: u.email, name: u.full_name || u.email })}
+                                  className="text-red-500 border-red-200 hover:bg-red-50">
+                                  <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                                </Button>
+                              )}
                             </div>
                           </div>
                         );
@@ -1787,6 +1811,26 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
                   <Check className="w-4 h-4" /> Confirmar
                 </Button>
               </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {deleteModal && (
+        <div className="fixed inset-0 bg-black/40 z-60 flex items-center justify-center p-4">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+            <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center mb-4">
+              <Trash2 className="w-6 h-6 text-red-500" />
+            </div>
+            <h3 className="font-black text-zinc-900 mb-1">Eliminar usuario</h3>
+            <p className="text-sm text-zinc-500 mb-1">{deleteModal.name !== deleteModal.email ? deleteModal.name + ' · ' : ''}<span className="font-semibold text-zinc-700">{deleteModal.email}</span></p>
+            <p className="text-xs text-red-600 mb-5">Esta acción es permanente. Se eliminará la cuenta, el perfil y todas las adaptaciones del usuario.</p>
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={() => setDeleteModal(null)} size="sm" className="flex-1">Cancelar</Button>
+              <Button onClick={deleteUser} loading={deleting} size="sm"
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white shadow-none">
+                <Trash2 className="w-4 h-4" /> Eliminar
+              </Button>
             </div>
           </motion.div>
         </div>
