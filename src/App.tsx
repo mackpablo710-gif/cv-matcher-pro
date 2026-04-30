@@ -521,6 +521,189 @@ async function generateWordDoc(cv: any, language: string) {
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
+// ─── Landing Page ─────────────────────────────────────────────────────────────
+
+const LandingPage = ({ onStart, onAuth }: { onStart: () => void; onAuth: () => void }) => {
+  const [showAuth, setShowAuth] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
+
+  if (showAuth) return <AuthScreen onAuth={onAuth} initialMode={authMode} />;
+
+  const steps = [
+    { n: '01', icon: FileText, title: 'Sube tu CV', desc: 'Carga tu currículum en PDF o pégalo como texto. Listo en segundos.' },
+    { n: '02', icon: Target, title: 'Pega la oferta laboral', desc: 'Copia la descripción del cargo al que quieres postular.' },
+    { n: '03', icon: Zap, title: 'Análisis inteligente', desc: 'Nuestra IA compara tu experiencia, habilidades y trayectoria con lo que busca la empresa.' },
+    { n: '04', icon: RefreshCw, title: 'Optimiza tu CV automáticamente', desc: 'CV JOB reescribe tu CV alineándolo con el cargo: mejora tu resumen, ajusta tu experiencia e incorpora las palabras clave que buscan los reclutadores.' },
+    { n: '05', icon: TrendingUp, title: 'Aumenta tus probabilidades', desc: 'Obtendrás una versión optimizada lista para enviar. Más clara, más alineada, más competitiva.' },
+  ];
+
+  const whys = [
+    { icon: Shield, text: 'No inventamos información. Solo potenciamos lo que ya tienes.' },
+    { icon: Target, text: 'Match real, no inflado. Sabemos exactamente dónde estás perdiendo oportunidades.' },
+    { icon: Zap, text: 'Resultados en menos de 2 minutos.' },
+    { icon: Star, text: 'CV optimizado para pasar filtros ATS y destacar ante reclutadores.' },
+  ];
+
+  return (
+    <div className="min-h-screen bg-zinc-950 text-white">
+      {/* Header */}
+      <header className="sticky top-0 z-40 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800">
+        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center">
+              <Zap className="w-4 h-4 text-white fill-white" />
+            </div>
+            <span className="font-black text-white tracking-tight">CV Matcher Pro</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={() => { setAuthMode('login'); setShowAuth(true); }}
+              className="text-sm font-semibold text-zinc-400 hover:text-white transition-colors">
+              Iniciar sesión
+            </button>
+            <button onClick={() => { setAuthMode('register'); setShowAuth(true); }}
+              className="text-sm font-black bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl transition-colors">
+              Registrarse gratis
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <section className="relative overflow-hidden pt-20 pb-24 px-6">
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/30 via-zinc-950 to-zinc-950 pointer-events-none" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-indigo-600/10 blur-3xl rounded-full pointer-events-none" />
+        <div className="relative max-w-4xl mx-auto text-center">
+          <div className="inline-flex items-center gap-2 bg-indigo-600/15 border border-indigo-500/30 rounded-full px-4 py-1.5 mb-8">
+            <Zap className="w-3.5 h-3.5 text-indigo-400 fill-indigo-400" />
+            <span className="text-xs font-bold text-indigo-300 uppercase tracking-widest">IA para tu búsqueda laboral</span>
+          </div>
+          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black leading-none mb-6">
+            ¿Cómo funciona<br />
+            <span className="text-indigo-400 italic font-serif">CV JOB?</span>
+          </h1>
+          <p className="text-lg sm:text-xl text-zinc-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+            Analizamos tu currículum y lo comparamos con una oferta laboral real para decirte, con precisión, qué tan bien calzas… y cómo mejorar.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button onClick={() => { setAuthMode('register'); setShowAuth(true); }}
+              className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black px-8 py-4 rounded-2xl text-base transition-all shadow-lg shadow-indigo-900/40 hover:scale-105">
+              <Zap className="w-5 h-5 fill-white" /> Comenzar gratis
+            </button>
+            <button onClick={() => { setAuthMode('login'); setShowAuth(true); }}
+              className="inline-flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white font-semibold px-8 py-4 rounded-2xl text-base transition-colors">
+              Ya tengo cuenta
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Steps */}
+      <section className="py-20 px-6 bg-zinc-900/50">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-14">
+            <p className="text-xs font-black uppercase tracking-widest text-indigo-400 mb-3">El proceso</p>
+            <h2 className="text-3xl sm:text-4xl font-black text-white">5 pasos para un CV ganador</h2>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {steps.map((s, i) => (
+              <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }} transition={{ delay: i * 0.08 }}
+                className={cn('relative bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-indigo-500/50 transition-colors', i === 4 ? 'sm:col-span-2 lg:col-span-1' : '')}>
+                <div className="flex items-start gap-4">
+                  <div className="shrink-0 w-10 h-10 bg-indigo-600/15 border border-indigo-500/30 rounded-xl flex items-center justify-center">
+                    <s.icon className="w-5 h-5 text-indigo-400" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-1">{s.n}</p>
+                    <h3 className="font-black text-white text-sm mb-2">{s.title}</h3>
+                    <p className="text-sm text-zinc-400 leading-relaxed">{s.desc}</p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Match result callout */}
+          <div className="mt-8 bg-gradient-to-r from-indigo-900/40 to-zinc-900 border border-indigo-500/30 rounded-2xl p-6">
+            <p className="text-sm font-black text-indigo-300 mb-3">👉 Obtendrás un % de match real y un desglose claro:</p>
+            <div className="grid sm:grid-cols-3 gap-3">
+              {['Qué partes de tu perfil sí calzan con el cargo', 'Qué te falta y cómo cerrarlo', 'Dónde estás perdiendo oportunidades'].map((t, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <p className="text-sm text-zinc-300">{t}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Why */}
+      <section className="py-20 px-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <p className="text-xs font-black uppercase tracking-widest text-indigo-400 mb-3">La razón</p>
+            <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">¿Por qué usar CV JOB?</h2>
+            <p className="text-zinc-400 text-lg max-w-xl mx-auto">
+              Porque hoy no basta con tener experiencia.<br />
+              <span className="text-white font-semibold">Necesitas mostrarla de la forma correcta.</span>
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            {whys.map((w, i) => (
+              <motion.div key={i} initial={{ opacity: 0, x: -10 }} whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+                className="flex items-start gap-4 bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+                <div className="w-9 h-9 bg-indigo-600/15 border border-indigo-500/30 rounded-xl flex items-center justify-center shrink-0">
+                  <w.icon className="w-4 h-4 text-indigo-400" />
+                </div>
+                <p className="text-sm text-zinc-300 leading-relaxed">{w.text}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Result CTA */}
+      <section className="py-20 px-6 bg-zinc-900/50">
+        <div className="max-w-3xl mx-auto text-center">
+          <div className="inline-flex items-center gap-3 mb-8">
+            <div className="flex items-center gap-2 bg-red-950/60 border border-red-800/50 rounded-2xl px-5 py-3">
+              <span className="text-2xl">📄</span>
+              <div className="text-left">
+                <p className="text-xs text-red-400 font-bold">Antes</p>
+                <p className="text-sm text-zinc-300 font-semibold">CV genérico</p>
+              </div>
+            </div>
+            <ArrowRight className="w-6 h-6 text-indigo-400 shrink-0" />
+            <div className="flex items-center gap-2 bg-emerald-950/60 border border-emerald-800/50 rounded-2xl px-5 py-3">
+              <span className="text-2xl">🏆</span>
+              <div className="text-left">
+                <p className="text-xs text-emerald-400 font-bold">Después</p>
+                <p className="text-sm text-zinc-300 font-semibold">CV alineado al cargo</p>
+              </div>
+            </div>
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">
+            Mayor probabilidad de<br />
+            <span className="text-indigo-400 italic font-serif">avanzar en el proceso</span>
+          </h2>
+          <p className="text-zinc-400 mb-10 text-lg">Tu primer análisis es gratis. Sin tarjeta de crédito.</p>
+          <button onClick={() => { setAuthMode('register'); setShowAuth(true); }}
+            className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-black px-10 py-4 rounded-2xl text-lg transition-all shadow-lg shadow-indigo-900/40 hover:scale-105">
+            <Zap className="w-5 h-5 fill-white" /> Comenzar gratis ahora
+          </button>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="py-8 px-6 border-t border-zinc-800 text-center">
+        <p className="text-zinc-600 text-sm">© 2026 CV Matcher Pro · <a href="https://www.cvjob.cl" className="hover:text-zinc-400 transition-colors">cvjob.cl</a></p>
+      </footer>
+    </div>
+  );
+};
+
 // ─── Reset Password Screen ────────────────────────────────────────────────────
 
 const ResetPasswordScreen = ({ onDone }: { onDone: () => void }) => {
@@ -612,8 +795,8 @@ const AuthLeftPanel = () => (
   </div>
 );
 
-const AuthScreen = ({ onAuth }: { onAuth: () => void }) => {
-  const [view, setView] = useState<AuthView>('login');
+const AuthScreen = ({ onAuth, initialMode = 'login' }: { onAuth: () => void; initialMode?: 'login' | 'register' }) => {
+  const [view, setView] = useState<AuthView>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -2087,7 +2270,7 @@ export default function App() {
     </div>
   );
 
-  if (!user) return <AuthScreen onAuth={() => setView('dashboard')} />;
+  if (!user) return <LandingPage onStart={() => {}} onAuth={() => setView('dashboard')} />;
 
   if (isRecoveringPassword) return <ResetPasswordScreen onDone={() => setIsRecoveringPassword(false)} />;
 
