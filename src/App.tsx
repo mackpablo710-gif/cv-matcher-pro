@@ -5,7 +5,7 @@ import {
   User as UserIcon, Globe, Mail, Lock, Chrome, Target, Zap, Shield,
   ArrowUp, ArrowDown, Search, Star, BarChart2, Clock, RefreshCw, X, Layers,
   CreditCard, Settings, Users, ShoppingBag, TrendingUp, Edit2, Save, Check, Pencil,
-  DollarSign, Package, Loader2
+  DollarSign, Package, Loader2, MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase, signInWithEmail, signUpWithEmail, signOut, signInWithGoogle, resetPasswordForEmail, updatePassword } from './lib/supabase';
@@ -534,7 +534,8 @@ const LandingPage = ({ onStart, onAuth }: { onStart: () => void; onAuth: () => v
     { n: '02', icon: Target, title: 'Pega la oferta laboral', desc: 'Copia la descripción del cargo al que quieres postular.' },
     { n: '03', icon: Zap, title: 'Análisis inteligente', desc: 'Comparamos tu experiencia, habilidades y trayectoria con lo que busca la empresa.' },
     { n: '04', icon: RefreshCw, title: 'Optimiza tu CV automáticamente', desc: 'CV JOB reescribe tu CV alineándolo con el cargo: mejora tu resumen, ajusta tu experiencia e incorpora las palabras clave que buscan los reclutadores.' },
-    { n: '05', icon: TrendingUp, title: 'Aumenta tus probabilidades', desc: 'Obtendrás una versión optimizada lista para enviar. Más clara, más alineada, más competitiva.' },
+    { n: '05', icon: MessageSquare, title: 'Prepárate para la entrevista', desc: 'Generamos 9 preguntas de entrevista específicas al cargo y a tu perfil: técnicas, conductuales y del rol, cada una con un tip personalizado basado en tu CV.' },
+    { n: '06', icon: TrendingUp, title: 'Aumenta tus probabilidades', desc: 'Obtendrás un CV optimizado y listo para enviar, más las herramientas para destacar en la entrevista.' },
   ];
 
   const whys = [
