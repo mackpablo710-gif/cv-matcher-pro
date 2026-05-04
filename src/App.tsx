@@ -736,7 +736,11 @@ const LandingPage = ({ onStart, onAuth }: { onStart: () => void; onAuth: () => v
 
       {/* Footer */}
       <footer className="py-8 px-6 border-t border-zinc-800 text-center">
-        <p className="text-zinc-600 text-sm">© 2026 CV Matcher Pro · <a href="https://www.cvjob.cl" className="hover:text-zinc-400 transition-colors">cvjob.cl</a></p>
+        <p className="text-zinc-600 text-sm">
+          © 2026 CV Matcher Pro · <a href="https://www.cvjob.cl" className="hover:text-zinc-400 transition-colors">cvjob.cl</a>
+          <span className="mx-2 text-zinc-700">·</span>
+          <a href="mailto:cvjob.contacto@gmail.com" className="hover:text-zinc-400 transition-colors">cvjob.contacto@gmail.com</a>
+        </p>
       </footer>
     </div>
   );
@@ -2342,7 +2346,11 @@ export default function App() {
               </div>
               <span className="font-medium hidden sm:block">{user.user_metadata?.full_name || user.email?.split('@')[0]}</span>
             </div>
-            <button onClick={() => signOut()} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors">
+            <a href="mailto:cvjob.contacto@gmail.com" title="Contacto y soporte"
+              className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors">
+              <Mail className="w-4 h-4" />
+            </a>
+            <button onClick={() => signOut()} title="Cerrar sesión" className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors">
               <LogOut className="w-4 h-4" />
             </button>
           </div>
