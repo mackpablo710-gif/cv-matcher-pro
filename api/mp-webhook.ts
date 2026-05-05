@@ -7,160 +7,245 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Validate MP signature — returns true if secret not configured (dev mode)
-function verifySignature(req: VercelRequest): boolean {
+// ─── Signature validation ─────────────────────────────────────────────────────
+// Returns null if valid, or an error string if invalid.
+function validateSignature(req: VercelRequest): string | null {
   const secret = process.env.MP_WEBHOOK_SECRET;
   if (!secret) {
-    console.warn('MP_WEBHOOK_SECRET not set — skipping signature check');
-    return true;
+    // No secret configured — hard fail in all environments.
+    // Never allow credits to be granted without a validated secret.
+    return 'MP_WEBHOOK_SECRET is not configured';
   }
 
-  const signature = req.headers['x-signature'] as string;
-  const requestId = req.headers['x-request-id'] as string;
+  const signature = req.headers['x-signature'] as string | undefined;
+  const requestId = req.headers['x-request-id'] as string | undefined;
 
-  // MP test notifications may not include signature headers
   if (!signature || !requestId) {
-    console.warn('MP webhook: missing signature headers — allowing through');
-    return true;
+    return `Missing signature headers (x-signature=${!!signature}, x-request-id=${!!requestId})`;
   }
 
-  const parts = Object.fromEntries(signature.split(',').map(p => p.split('=')));
+  // Parse "ts=1234567890,v1=<hex>" — safe for hex values that never contain '='
+  const parts: Record<string, string> = {};
+  for (const part of signature.split(',')) {
+    const idx = part.indexOf('=');
+    if (idx === -1) continue;
+    parts[part.slice(0, idx)] = part.slice(idx + 1);
+  }
+
   const ts = parts['ts'];
-  const hash = parts['v1'];
-  if (!ts || !hash) return true;
+  const receivedHash = parts['v1'];
 
-  const dataId = (req.query?.['data.id'] || req.body?.data?.id) as string;
-  const manifest = `id:${dataId};request-id:${requestId};ts:${ts};`;
-  const expected = crypto.createHmac('sha256', secret).update(manifest).digest('hex');
-
-  try {
-    return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(hash));
-  } catch {
-    return false;
+  if (!ts || !receivedHash) {
+    return `Malformed x-signature header: ${signature}`;
   }
+
+  // data.id comes from query string or body depending on MP version
+  const dataId = (
+    (req.query?.['data.id'] as string) || String(req.body?.data?.id || '')
+  );
+
+  if (!dataId) {
+    return 'Cannot determine data.id for signature manifest';
+  }
+
+  const manifest = `id:${dataId};request-id:${requestId};ts:${ts};`;
+  const expectedHash = crypto
+    .createHmac('sha256', secret)
+    .update(manifest)
+    .digest('hex');
+
+  // timingSafeEqual requires same-length buffers
+  if (expectedHash.length !== receivedHash.length) {
+    return 'Signature length mismatch — likely wrong secret or tampered request';
+  }
+
+  const valid = crypto.timingSafeEqual(
+    Buffer.from(expectedHash, 'hex'),
+    Buffer.from(receivedHash, 'hex')
+  );
+
+  if (!valid) {
+    return 'Signature mismatch — request rejected';
+  }
+
+  return null; // valid
 }
 
+// ─── Main handler ─────────────────────────────────────────────────────────────
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // ── Requirement 1: POST only ──────────────────────────────────────────────
   if (req.method !== 'POST') return res.status(405).end();
 
-  // Always respond 200 quickly so MP doesn't retry endlessly
-  if (!verifySignature(req)) {
-    console.warn('MP webhook: invalid signature — rejecting');
-    return res.status(200).json({ received: true, skipped: 'invalid_signature' });
+  // ── Requirements 2-4: Validate signature — hard fail on any error ─────────
+  const sigError = validateSignature(req);
+  if (sigError) {
+    console.error(`[mp-webhook] REJECTED — ${sigError}`);
+    return res.status(401).json({ error: 'Unauthorized', reason: sigError });
   }
 
-  const { type, data } = req.body;
+  const { type, data } = req.body ?? {};
 
-  // Only process payment notifications
+  // Only process payment notifications; acknowledge everything else silently
   if (type !== 'payment' || !data?.id) {
+    console.log(`[mp-webhook] Skipped — type=${type} data.id=${data?.id ?? 'none'}`);
     return res.status(200).json({ received: true, skipped: 'not_a_payment' });
   }
 
   const paymentId = String(data.id);
 
   try {
-    // ── 1. Fetch the real payment from MP API ─────────────────────────────
+    // ── Requirement 12: Warn if using a test access token ─────────────────
+    const accessToken = process.env.MP_ACCESS_TOKEN ?? '';
+    if (accessToken.startsWith('TEST-')) {
+      console.warn('[mp-webhook] WARNING: MP_ACCESS_TOKEN looks like a TEST credential');
+    }
+
+    // ── Requirement 5: Fetch the real payment from MP API ─────────────────
     const mpRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-      headers: { Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}` },
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
 
     if (!mpRes.ok) {
-      console.error(`MP webhook: could not fetch payment ${paymentId} — status ${mpRes.status}`);
-      return res.status(200).json({ received: true, skipped: 'mp_fetch_failed' });
+      const body = await mpRes.text();
+      console.error(`[mp-webhook] MP API error fetching payment ${paymentId}: HTTP ${mpRes.status} — ${body}`);
+      // Do NOT acredit anything — return 500 so MP retries
+      return res.status(500).json({ error: 'Could not fetch payment from Mercado Pago' });
     }
 
     const payment = await mpRes.json();
-    console.log(`MP webhook: payment ${paymentId} status=${payment.status} ref=${payment.external_reference}`);
 
-    // ── 2. Only continue for approved payments ────────────────────────────
+    console.log(
+      `[mp-webhook] payment_id=${paymentId} status=${payment.status}` +
+      ` external_reference=${payment.external_reference} amount=${payment.transaction_amount}`
+    );
+
+    // ── Requirement 6: Only continue for approved payments ────────────────
     if (payment.status !== 'approved') {
-      // Update purchase status if we can identify the record
+      // Update purchase row if we can identify it — no credits touched
       if (payment.preference_id) {
-        await supabase
+        const { error } = await supabase
           .from('purchases')
           .update({ status: payment.status, mp_payment_id: paymentId })
           .eq('mp_preference_id', payment.preference_id)
           .eq('status', 'pending');
+        if (error) {
+          console.error(`[mp-webhook] Failed to update purchase status for preference ${payment.preference_id}:`, error.message);
+        }
       }
+      console.log(`[mp-webhook] Not approved — payment_id=${paymentId} status=${payment.status}`);
       return res.status(200).json({ received: true, skipped: `payment_${payment.status}` });
     }
 
-    // ── 3. Parse external_reference ───────────────────────────────────────
-    const [userId, packageId] = (payment.external_reference || '').split('::');
+    // ── Requirement 7: Identify user and package from external_reference ──
+    const [userId, packageId] = (payment.external_reference ?? '').split('::');
     if (!userId || !packageId) {
-      console.error('MP webhook: invalid external_reference:', payment.external_reference);
+      console.error(
+        `[mp-webhook] Invalid external_reference="${payment.external_reference}" for payment ${paymentId}`
+      );
+      // Return 200 so MP does not retry — nothing we can do without a valid reference
       return res.status(200).json({ received: true, skipped: 'invalid_reference' });
     }
 
-    // ── 4. Idempotency: skip if already processed ─────────────────────────
-    const { data: alreadyDone } = await supabase
+    // ── Requirement 9: Idempotency — skip if already processed ───────────
+    const { data: duplicate } = await supabase
       .from('purchases')
-      .select('id, status')
+      .select('id')
       .eq('mp_payment_id', paymentId)
       .eq('status', 'approved')
       .maybeSingle();
 
-    if (alreadyDone) {
-      console.log(`MP webhook: payment ${paymentId} already processed — skipping`);
+    if (duplicate) {
+      console.log(`[mp-webhook] Already processed payment_id=${paymentId} — skipping`);
       return res.status(200).json({ received: true, skipped: 'already_processed' });
     }
 
-    // ── 5. Find the pending purchase record ───────────────────────────────
-    const { data: purchase } = await supabase
+    // ── Find the pending purchase record created by create-preference.ts ──
+    const { data: purchase, error: purchaseErr } = await supabase
       .from('purchases')
       .select('id, credits, price')
       .eq('mp_preference_id', payment.preference_id)
       .eq('user_id', userId)
       .maybeSingle();
 
+    if (purchaseErr) {
+      console.error(`[mp-webhook] DB error finding purchase:`, purchaseErr.message);
+      return res.status(500).json({ error: 'DB error' });
+    }
+
     if (!purchase) {
-      console.error(`MP webhook: no pending purchase found for preference ${payment.preference_id} user ${userId}`);
+      console.error(
+        `[mp-webhook] No purchase record found — preference=${payment.preference_id} user=${userId}`
+      );
+      // Return 200 so MP stops retrying; log is the signal to investigate
       return res.status(200).json({ received: true, skipped: 'purchase_not_found' });
     }
 
-    // ── 6. Get package credits (use purchase.credits as source of truth) ──
+    // ── Requirement 8: Exact credits for the package ──────────────────────
     const creditsToAdd = Number(purchase.credits);
     if (!creditsToAdd || creditsToAdd <= 0) {
-      console.error('MP webhook: purchase has no credits value', purchase);
-      return res.status(200).json({ received: true, skipped: 'no_credits_value' });
+      console.error(`[mp-webhook] Purchase ${purchase.id} has invalid credits=${purchase.credits}`);
+      return res.status(200).json({ received: true, skipped: 'invalid_credits_value' });
     }
 
-    // ── 7. Get current user credits ───────────────────────────────────────
-    const { data: profile } = await supabase
+    // ── Get current profile credits ───────────────────────────────────────
+    const { data: profile, error: profileErr } = await supabase
       .from('profiles')
       .select('credits')
       .eq('id', userId)
       .single();
 
-    if (!profile) {
-      console.error(`MP webhook: profile not found for user ${userId}`);
-      return res.status(200).json({ received: true, skipped: 'profile_not_found' });
+    if (profileErr || !profile) {
+      console.error(`[mp-webhook] Profile not found for user=${userId}:`, profileErr?.message);
+      return res.status(500).json({ error: 'Profile not found' });
     }
 
-    const newCredits = Number(profile.credits || 0) + creditsToAdd;
+    const newCredits = Number(profile.credits ?? 0) + creditsToAdd;
 
-    // ── 8. Apply credits + mark purchase approved (both must succeed) ─────
-    const [creditsResult, purchaseResult] = await Promise.all([
-      supabase.from('profiles').update({ credits: newCredits }).eq('id', userId),
-      supabase.from('purchases')
-        .update({ status: 'approved', mp_payment_id: paymentId })
-        .eq('id', purchase.id),
-    ]);
+    // ── Requirement 10 + apply credits atomically ─────────────────────────
+    // Update credits first; if it fails we abort before marking purchase approved
+    const { error: creditsErr } = await supabase
+      .from('profiles')
+      .update({ credits: newCredits })
+      .eq('id', userId);
 
-    if (creditsResult.error) {
-      console.error('MP webhook: failed to update credits', creditsResult.error);
+    if (creditsErr) {
+      console.error(`[mp-webhook] CRITICAL: failed to add credits for user=${userId}:`, creditsErr.message);
       return res.status(500).json({ error: 'Failed to update credits' });
     }
-    if (purchaseResult.error) {
-      console.error('MP webhook: failed to update purchase', purchaseResult.error);
-      // Credits were already applied — log but don't fail
+
+    // Mark purchase approved — save mp_payment_id and actual transaction_amount
+    const { error: purchaseUpdateErr } = await supabase
+      .from('purchases')
+      .update({
+        status: 'approved',
+        mp_payment_id: paymentId,
+        price: payment.transaction_amount ?? purchase.price, // use real amount if available
+      })
+      .eq('id', purchase.id);
+
+    if (purchaseUpdateErr) {
+      // Credits already applied — log clearly so it can be reconciled manually
+      console.error(
+        `[mp-webhook] WARN: credits applied but purchase update failed for purchase=${purchase.id}:`,
+        purchaseUpdateErr.message
+      );
     }
 
-    console.log(`MP webhook ✓ user=${userId} +${creditsToAdd} credits → total=${newCredits} payment=${paymentId}`);
+    // ── Requirement 11: Success log ───────────────────────────────────────
+    console.log(
+      `[mp-webhook] ✓ APPROVED` +
+      ` payment_id=${paymentId}` +
+      ` user_id=${userId}` +
+      ` credits_added=${creditsToAdd}` +
+      ` new_total=${newCredits}` +
+      ` amount=${payment.transaction_amount}` +
+      ` external_reference=${payment.external_reference}`
+    );
+
     return res.status(200).json({ ok: true, credits_added: creditsToAdd, new_total: newCredits });
 
   } catch (err: any) {
-    console.error('MP webhook error:', err);
-    return res.status(500).json({ error: 'Internal error' });
+    console.error(`[mp-webhook] Unhandled error for payment_id=${paymentId}:`, err?.message ?? err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
