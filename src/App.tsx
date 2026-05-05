@@ -1816,6 +1816,12 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
     await loadAll();
   };
 
+  const deletePackage = async (id: string, name: string) => {
+    if (!window.confirm(`¿Eliminar el paquete "${name}"? Esta acción no se puede deshacer.`)) return;
+    await supabase.from('packages').delete().eq('id', id);
+    await loadAll();
+  };
+
   const togglePackage = async (id: string, active: boolean) => {
     await supabase.from('packages').update({ active: !active }).eq('id', id);
     await loadAll();
@@ -1925,6 +1931,12 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
                         const q = userSearch.toLowerCase();
                         return u.email?.toLowerCase().includes(q) || u.full_name?.toLowerCase().includes(q);
                       })
+                      .sort((a, b) => {
+                        if (!a.last_active_at && !b.last_active_at) return 0;
+                        if (!a.last_active_at) return 1;
+                        if (!b.last_active_at) return -1;
+                        return new Date(b.last_active_at).getTime() - new Date(a.last_active_at).getTime();
+                      })
                       .map(u => {
                         const userAdapts = adaptations.filter((a: any) => a.user_id === u.id);
                         const userAdaptsDone = userAdapts.filter(a => a.final_score > 0).length;
@@ -2008,10 +2020,14 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
                           </div>
                           <div className="flex items-center gap-2">
                             <button onClick={() => { setEditingPkg(pkg.id); setPkgForm({ name: pkg.name, credits: pkg.credits, price: pkg.price }); }}
-                              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-100 text-zinc-500"><Edit2 className="w-4 h-4" /></button>
+                              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-100 text-zinc-500" title="Editar"><Edit2 className="w-4 h-4" /></button>
                             <button onClick={() => togglePackage(pkg.id, pkg.active)}
                               className={cn('text-xs font-bold px-3 py-1.5 rounded-lg', pkg.active ? 'bg-zinc-100 text-zinc-600 hover:bg-red-50 hover:text-red-500' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100')}>
                               {pkg.active ? 'Desactivar' : 'Activar'}
+                            </button>
+                            <button onClick={() => deletePackage(pkg.id, pkg.name)}
+                              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-zinc-400 hover:text-red-500" title="Eliminar paquete">
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         </div>
