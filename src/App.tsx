@@ -2241,19 +2241,25 @@ export default function App() {
     const payment = params.get('payment');
     if (payment === 'success' || payment === 'pending' || payment === 'failure') {
       setPaymentToast(payment as any);
-      // Clean URL without reload
       window.history.replaceState({}, '', window.location.pathname);
-      // Reload credits after successful payment
-      if (payment === 'success') {
-        setTimeout(() => {
-          supabase.auth.getUser().then(({ data: { user } }) => {
-            if (user) loadProfile(user.id);
-          });
-        }, 3000); // wait for webhook to process
-      }
       setTimeout(() => setPaymentToast(null), 6000);
     }
   }, []);
+
+  // Real-time: update credits instantly when webhook approves payment or admin grants credits
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`profile-credits-${user.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'profiles',
+        filter: `id=eq.${user.id}`,
+      }, (payload) => {
+        if (payload.new) setProfile(payload.new as any);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id]);
 
   const loadProfile = async (userId: string) => {
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
