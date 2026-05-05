@@ -72,7 +72,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       credits: pkg.credits,
       price: pkg.price,
       mp_preference_id: result.id,
-      status: 'pending',
+      status: 'initiated',
       note: 'Mercado Pago',
     });
 

@@ -119,20 +119,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ` external_reference=${payment.external_reference} amount=${payment.transaction_amount}`
     );
 
-    // ── Requirement 6: Only continue for approved payments ────────────────
+    // ── Map MP status to internal status ─────────────────────────────────
+    // MP statuses: approved | pending | in_process | rejected | cancelled | refunded | charged_back
+    const statusMap: Record<string, string> = {
+      approved:     'approved',
+      pending:      'processing',   // MP is processing (bank transfer, etc.)
+      in_process:   'processing',
+      rejected:     'no_completado',
+      cancelled:    'no_completado',
+      refunded:     'no_completado',
+      charged_back: 'no_completado',
+    };
+    const internalStatus = statusMap[payment.status] ?? payment.status;
+
+    // ── Only continue for approved payments ───────────────────────────────
     if (payment.status !== 'approved') {
-      // Update purchase row if we can identify it — no credits touched
       if (payment.preference_id) {
         const { error } = await supabase
           .from('purchases')
-          .update({ status: payment.status, mp_payment_id: paymentId })
+          .update({ status: internalStatus, mp_payment_id: paymentId })
           .eq('mp_preference_id', payment.preference_id)
-          .eq('status', 'pending');
+          .in('status', ['initiated', 'pending', 'processing']);
         if (error) {
-          console.error(`[mp-webhook] Failed to update purchase status for preference ${payment.preference_id}:`, error.message);
+          console.error(`[mp-webhook] Failed to update status for preference ${payment.preference_id}:`, error.message);
         }
       }
-      console.log(`[mp-webhook] Not approved — payment_id=${paymentId} status=${payment.status}`);
+      console.log(`[mp-webhook] Not approved — payment_id=${paymentId} mp_status=${payment.status} → ${internalStatus}`);
       return res.status(200).json({ received: true, skipped: `payment_${payment.status}` });
     }
 
@@ -159,12 +171,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ received: true, skipped: 'already_processed' });
     }
 
-    // ── Find the pending purchase record created by create-preference.ts ──
+    // ── Find the purchase record created by create-preference.ts ─────────
     const { data: purchase, error: purchaseErr } = await supabase
       .from('purchases')
       .select('id, credits, price')
       .eq('mp_preference_id', payment.preference_id)
       .eq('user_id', userId)
+      .in('status', ['initiated', 'pending', 'processing'])
       .maybeSingle();
 
     if (purchaseErr) {

@@ -2036,9 +2036,13 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
                         {purchases.length === 0 && <p className="text-center py-8 text-zinc-400 text-sm">Sin transacciones</p>}
                         {purchases.map((p, i) => {
                           const u = users.find(u => u.id === p.user_id);
-                          const isMP = p.status === 'approved';
-                          const isAdmin = p.status === 'admin_grant';
-                          const isPending = p.status === 'pending';
+                          const s = p.status;
+                          const isApproved   = s === 'approved';
+                          const isAdmin      = s === 'admin_grant';
+                          const isProcessing = s === 'processing';
+                          const isAbandoned  = s === 'initiated' || s === 'pending';
+                          const isRejected   = s === 'no_completado';
+                          const sourceIsMP   = isApproved || isProcessing || isAbandoned || isRejected;
                           const date = p.created_at ? new Date(p.created_at).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
                           return (
                             <div key={i} className="grid grid-cols-6 gap-2 px-4 py-3 items-center text-sm hover:bg-zinc-50">
@@ -2047,18 +2051,17 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
                                 <p className="text-xs text-zinc-400">{date}</p>
                               </div>
                               <div>
-                                {isMP && <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg">Mercado Pago</span>}
+                                {sourceIsMP && <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg">Mercado Pago</span>}
                                 {isAdmin && <span className="text-xs font-bold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-lg">Admin</span>}
-                                {isPending && <span className="text-xs font-bold bg-amber-50 text-amber-600 px-2 py-0.5 rounded-lg">Pendiente</span>}
-                                {!isMP && !isAdmin && !isPending && <span className="text-xs font-bold bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded-lg">{p.status || '—'}</span>}
                               </div>
-                              <div className="font-bold text-zinc-900">{p.credits ?? '—'}</div>
+                              <div className="font-bold text-zinc-900">{isApproved || isAdmin ? (p.credits ?? '—') : '—'}</div>
                               <div className="font-bold text-zinc-900">{p.price > 0 ? formatCLP(p.price) : '—'}</div>
                               <div>
-                                {isMP && <span className="text-xs font-bold text-emerald-600">✓ Aprobado</span>}
-                                {isAdmin && <span className="text-xs font-bold text-indigo-600">Otorgado</span>}
-                                {isPending && <span className="text-xs font-bold text-amber-500">Pendiente</span>}
-                                {!isMP && !isAdmin && !isPending && <span className="text-xs text-zinc-400">{p.status}</span>}
+                                {isApproved   && <span className="text-xs font-bold text-emerald-600">✓ Aprobado</span>}
+                                {isAdmin      && <span className="text-xs font-bold text-indigo-600">Otorgado</span>}
+                                {isProcessing && <span className="text-xs font-bold text-amber-500">⏳ En proceso</span>}
+                                {isAbandoned  && <span className="text-xs font-bold text-zinc-400">Pago no efectuado</span>}
+                                {isRejected   && <span className="text-xs font-bold text-red-500">Rechazado</span>}
                               </div>
                             </div>
                           );
