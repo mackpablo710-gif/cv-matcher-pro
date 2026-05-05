@@ -1762,7 +1762,7 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
 
   // Exclude admin-granted (price=0 with note) from financial stats
   const realPurchases = purchases.filter(p => p.price > 0 && p.status === 'approved');
-  const adminGrants = purchases.filter(p => p.price === 0);
+  const adminGrants = purchases.filter(p => p.price === 0 || (p.price == null && p.status !== 'approved'));
   const totalRevenue = realPurchases.reduce((a, p) => a + (p.price || 0), 0);
   const totalCredits = realPurchases.reduce((a, p) => a + (p.credits || 0), 0);
   const initialMatchCount = adaptations.filter(a => a.initial_score > 0).length;
@@ -1830,7 +1830,12 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
             <div className="w-10 h-10 bg-zinc-900 rounded-xl flex items-center justify-center"><Shield className="w-5 h-5 text-white" /></div>
             <div><h2 className="text-xl font-black text-zinc-900">Panel de Administración</h2><p className="text-sm text-zinc-500">CV Matcher Pro</p></div>
           </div>
-          <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-zinc-100"><X className="w-5 h-5 text-zinc-500" /></button>
+          <div className="flex items-center gap-2">
+            <button onClick={loadAll} title="Actualizar datos" className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-zinc-100">
+              <RefreshCw className={cn('w-4 h-4 text-zinc-500', loading && 'animate-spin')} />
+            </button>
+            <button onClick={onClose} className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-zinc-100"><X className="w-5 h-5 text-zinc-500" /></button>
+          </div>
         </div>
 
         <div className="flex border-b border-zinc-100 px-6">
@@ -1878,13 +1883,20 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
                     </Card>
                     <Card className="p-5">
                       <h3 className="text-sm font-black text-zinc-500 uppercase tracking-widest mb-3">Últimas compras reales</h3>
-                      {realPurchases.slice(0, 4).map((p, i) => {
+                      {realPurchases.length === 0 && (
+                        <p className="text-sm text-zinc-400 text-center py-3">Sin compras aprobadas aún</p>
+                      )}
+                      {realPurchases.slice(0, 5).map((p, i) => {
                         const u = users.find(u => u.id === p.user_id);
+                        const date = p.created_at ? new Date(p.created_at).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
                         return (
-                          <div key={i} className="flex items-center justify-between py-1.5 text-sm">
-                            <span className="text-zinc-600 truncate max-w-[160px]">{u?.email || 'Usuario'}</span>
-                            <div className="flex items-center gap-2">
-                              <Badge color="indigo">{p.credits} créditos</Badge>
+                          <div key={i} className="flex items-center justify-between py-2 text-sm border-b border-zinc-50 last:border-0">
+                            <div className="min-w-0">
+                              <p className="text-zinc-800 font-semibold truncate max-w-[170px]">{u?.full_name || u?.email || 'Usuario'}</p>
+                              <p className="text-xs text-zinc-400">{date}</p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <Badge color="indigo">{p.credits} cr.</Badge>
                               <span className="font-bold text-zinc-900">{formatCLP(p.price)}</span>
                             </div>
                           </div>
