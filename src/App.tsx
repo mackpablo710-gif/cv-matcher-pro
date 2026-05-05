@@ -2237,14 +2237,50 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Handle Mercado Pago return — show toast and clean URL
+  // Handle Mercado Pago return — verify payment and apply credits immediately
   const [paymentToast, setPaymentToast] = useState<'success' | 'pending' | 'failure' | null>(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const payment = params.get('payment');
-    if (payment === 'success' || payment === 'pending' || payment === 'failure') {
+    if (!payment) return;
+    window.history.replaceState({}, '', window.location.pathname);
+
+    if (payment === 'success') {
+      setPaymentToast('success');
+      setTimeout(() => setPaymentToast(null), 8000);
+
+      // Verify payment with MP API and apply credits immediately (no webhook dependency)
+      supabase.auth.getUser().then(async ({ data: { user: u } }) => {
+        if (!u) return;
+        try {
+          const res = await fetch('/api/verify-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: u.id }),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            // Reload profile to reflect new credits (realtime also fires, this is a safety net)
+            loadProfile(u.id);
+          } else {
+            console.warn('[payment] verify-payment returned:', data.reason);
+            // Retry once after 5s in case MP needs a moment to index the payment
+            setTimeout(async () => {
+              const res2 = await fetch('/api/verify-payment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: u.id }),
+              });
+              const data2 = await res2.json();
+              if (data2.ok) loadProfile(u.id);
+            }, 5000);
+          }
+        } catch (e) {
+          console.error('[payment] verify-payment error:', e);
+        }
+      });
+    } else {
       setPaymentToast(payment as any);
-      window.history.replaceState({}, '', window.location.pathname);
       setTimeout(() => setPaymentToast(null), 6000);
     }
   }, []);

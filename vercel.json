@@ -23,6 +23,7 @@
     { "source": "/api/adapt-cv", "destination": "/api/adapt-cv" },
     { "source": "/api/create-preference", "destination": "/api/create-preference" },
     { "source": "/api/mp-webhook", "destination": "/api/mp-webhook" },
+    { "source": "/api/verify-payment", "destination": "/api/verify-payment" },
     { "source": "/api/admin-delete-user", "destination": "/api/admin-delete-user" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
