@@ -1727,7 +1727,7 @@ const ExportStep = ({ cv, analysis, language, onBack }: {
 // ─── Admin Panel ──────────────────────────────────────────────────────────────
 
 const AdminPanel = ({ onClose }: { onClose: () => void }) => {
-  const [tab, setTab] = useState<'overview' | 'users' | 'packages'>('overview');
+  const [tab, setTab] = useState<'overview' | 'users' | 'packages' | 'transactions'>('overview');
   const [users, setUsers] = useState<any[]>([]);
   const [packages, setPackages] = useState<any[]>([]);
   const [purchases, setPurchases] = useState<any[]>([]);
@@ -1743,7 +1743,20 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
   const [deleting, setDeleting] = useState(false);
   const [userSearch, setUserSearch] = useState('');
 
-  useEffect(() => { loadAll(); }, []);
+  useEffect(() => {
+    loadAll();
+    // Real-time: refresh when a purchase is inserted or updated (webhook fires)
+    const channel = supabase
+      .channel('admin-purchases-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'purchases' }, () => {
+        loadAll();
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, () => {
+        loadAll();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   const loadAll = async () => {
     setLoading(true);
@@ -1760,9 +1773,9 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
     setLoading(false);
   };
 
-  // Exclude admin-granted (price=0 with note) from financial stats
-  const realPurchases = purchases.filter(p => p.price > 0 && p.status === 'approved');
-  const adminGrants = purchases.filter(p => p.price === 0 || (p.price == null && p.status !== 'approved'));
+  // Only real MP payments count as revenue
+  const realPurchases = purchases.filter(p => p.status === 'approved' && p.price > 0);
+  const adminGrants = purchases.filter(p => p.status === 'admin_grant');
   const totalRevenue = realPurchases.reduce((a, p) => a + (p.price || 0), 0);
   const totalCredits = realPurchases.reduce((a, p) => a + (p.credits || 0), 0);
   const initialMatchCount = adaptations.filter(a => a.initial_score > 0).length;
@@ -1779,6 +1792,7 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
       package_id: pkg?.id || null,
       credits: amount,
       price: 0,
+      status: 'admin_grant',
       note: note || `Otorgado por admin`,
     });
     await supabase.from('profiles').update({ credits: creditModal.current + amount }).eq('id', creditModal.userId);
@@ -1845,7 +1859,7 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
         </div>
 
         <div className="flex border-b border-zinc-100 px-6">
-          {([['overview', 'Resumen', TrendingUp], ['users', 'Usuarios', Users], ['packages', 'Paquetes', Package]] as const).map(([id, label, Icon]) => (
+          {([['overview', 'Resumen', TrendingUp], ['users', 'Usuarios', Users], ['packages', 'Paquetes', Package], ['transactions', 'Transacciones', DollarSign]] as const).map(([id, label, Icon]) => (
             <button key={id} onClick={() => setTab(id)}
               className={cn('flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition-all', tab === id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-zinc-500 hover:text-zinc-700')}>
               <Icon className="w-4 h-4" />{label}
@@ -1986,6 +2000,74 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
                   </div>
                 </div>
               )}
+
+              {tab === 'transactions' && (() => {
+                const exportCSV = () => {
+                  const rows = [
+                    ['Fecha', 'Usuario', 'Email', 'Fuente', 'Créditos', 'Monto (CLP)', 'Estado', 'Nota', 'MP Payment ID'],
+                    ...purchases.map(p => {
+                      const u = users.find(u => u.id === p.user_id);
+                      const source = p.status === 'admin_grant' ? 'Admin' : 'Mercado Pago';
+                      const date = p.created_at ? new Date(p.created_at).toLocaleString('es-CL') : '';
+                      return [date, u?.full_name || '', u?.email || '', source, p.credits ?? '', p.price ?? 0, p.status || '', p.note || '', p.mp_payment_id || ''];
+                    }),
+                  ];
+                  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+                  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a'); a.href = url; a.download = `transacciones_cvjob_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+                  URL.revokeObjectURL(url);
+                };
+                return (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-zinc-500">{purchases.length} transacciones totales · <span className="text-emerald-600 font-semibold">{realPurchases.length} pagos MP</span> · <span className="text-indigo-600 font-semibold">{adminGrants.length} otorgados por admin</span></p>
+                      </div>
+                      <button onClick={exportCSV} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors">
+                        <Download className="w-4 h-4" /> Exportar Excel (.csv)
+                      </button>
+                    </div>
+                    <div className="border border-zinc-100 rounded-2xl overflow-hidden">
+                      <div className="grid grid-cols-6 gap-2 px-4 py-3 bg-zinc-50 text-xs font-black uppercase tracking-widest text-zinc-400">
+                        <span className="col-span-2">Usuario</span><span>Fuente</span><span>Créditos</span><span>Monto</span><span>Estado</span>
+                      </div>
+                      <div className="divide-y divide-zinc-50 max-h-[420px] overflow-y-auto">
+                        {purchases.length === 0 && <p className="text-center py-8 text-zinc-400 text-sm">Sin transacciones</p>}
+                        {purchases.map((p, i) => {
+                          const u = users.find(u => u.id === p.user_id);
+                          const isMP = p.status === 'approved';
+                          const isAdmin = p.status === 'admin_grant';
+                          const isPending = p.status === 'pending';
+                          const date = p.created_at ? new Date(p.created_at).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+                          return (
+                            <div key={i} className="grid grid-cols-6 gap-2 px-4 py-3 items-center text-sm hover:bg-zinc-50">
+                              <div className="col-span-2 min-w-0">
+                                <p className="font-semibold text-zinc-800 truncate">{u?.full_name || u?.email || 'Usuario'}</p>
+                                <p className="text-xs text-zinc-400">{date}</p>
+                              </div>
+                              <div>
+                                {isMP && <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-lg">Mercado Pago</span>}
+                                {isAdmin && <span className="text-xs font-bold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-lg">Admin</span>}
+                                {isPending && <span className="text-xs font-bold bg-amber-50 text-amber-600 px-2 py-0.5 rounded-lg">Pendiente</span>}
+                                {!isMP && !isAdmin && !isPending && <span className="text-xs font-bold bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded-lg">{p.status || '—'}</span>}
+                              </div>
+                              <div className="font-bold text-zinc-900">{p.credits ?? '—'}</div>
+                              <div className="font-bold text-zinc-900">{p.price > 0 ? formatCLP(p.price) : '—'}</div>
+                              <div>
+                                {isMP && <span className="text-xs font-bold text-emerald-600">✓ Aprobado</span>}
+                                {isAdmin && <span className="text-xs font-bold text-indigo-600">Otorgado</span>}
+                                {isPending && <span className="text-xs font-bold text-amber-500">Pendiente</span>}
+                                {!isMP && !isAdmin && !isPending && <span className="text-xs text-zinc-400">{p.status}</span>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {tab === 'packages' && (
                 <div className="space-y-4">
