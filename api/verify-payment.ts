@@ -15,7 +15,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Find the latest purchase for this user that hasn't been approved yet
   const { data: purchase, error: purchaseErr } = await supabase
     .from('purchases')
-    .select('id, credits, price, mp_preference_id, status')
+    .select('id, credits, price, mp_preference_id, package_id, status')
     .eq('user_id', user_id)
     .in('status', ['initiated', 'pending', 'processing'])
     .gt('price', 0)
@@ -33,33 +33,57 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: false, reason: 'no_pending_purchase' });
   }
 
-  if (!purchase.mp_preference_id) {
-    return res.status(200).json({ ok: false, reason: 'no_preference_id' });
+  const accessToken = process.env.MP_ACCESS_TOKEN ?? '';
+
+  // ── Strategy 1: search by external_reference (userId::packageId) ────────────
+  // This is the most reliable MP search filter.
+  let payment: any = null;
+
+  if (purchase.package_id) {
+    const externalRef = `${user_id}::${purchase.package_id}`;
+    const mpByRef = await fetch(
+      `https://api.mercadopago.com/v1/payments/search?external_reference=${encodeURIComponent(externalRef)}&sort=date_created&criteria=desc&limit=5`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+
+    if (mpByRef.ok) {
+      const { results } = await mpByRef.json();
+      // Pick the most recent approved payment, or fall back to any approved one
+      payment = results?.find((p: any) => p.status === 'approved') ?? null;
+      console.log(
+        `[verify-payment] search by external_reference="${externalRef}" → ${results?.length ?? 0} results, approved=${!!payment}`
+      );
+    } else {
+      console.warn(`[verify-payment] external_reference search failed: HTTP ${mpByRef.status}`);
+    }
   }
 
-  // Search for the payment in MP API by preference_id
-  // When MP redirects with auto_return='approved', payment is confirmed
-  const mpRes = await fetch(
-    `https://api.mercadopago.com/v1/payments/search?preference_id=${purchase.mp_preference_id}&sort=date_created&criteria=desc&limit=1`,
-    { headers: { Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}` } }
-  );
+  // ── Strategy 2: fallback — search by preference_id if we have it ────────────
+  if (!payment && purchase.mp_preference_id) {
+    const mpByPref = await fetch(
+      `https://api.mercadopago.com/v1/payments/search?preference_id=${purchase.mp_preference_id}&sort=date_created&criteria=desc&limit=5`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
 
-  if (!mpRes.ok) {
-    const body = await mpRes.text();
-    console.error(`[verify-payment] MP API error: ${mpRes.status} — ${body}`);
-    return res.status(200).json({ ok: false, reason: 'mp_api_error' });
+    if (mpByPref.ok) {
+      const { results } = await mpByPref.json();
+      payment = results?.find((p: any) => p.status === 'approved') ?? null;
+      console.log(
+        `[verify-payment] search by preference_id="${purchase.mp_preference_id}" → ${results?.length ?? 0} results, approved=${!!payment}`
+      );
+    } else {
+      const body = await mpByPref.text();
+      console.error(`[verify-payment] preference_id search failed: HTTP ${mpByPref.status} — ${body}`);
+      return res.status(200).json({ ok: false, reason: 'mp_api_error' });
+    }
   }
 
-  const { results } = await mpRes.json();
-  const payment = results?.[0];
-
-  console.log(`[verify-payment] user=${user_id} preference=${purchase.mp_preference_id} mp_status=${payment?.status ?? 'not_found'}`);
-
-  if (!payment || payment.status !== 'approved') {
-    return res.status(200).json({ ok: false, reason: `payment_${payment?.status ?? 'not_found'}` });
+  if (!payment) {
+    console.log(`[verify-payment] No approved payment found for user=${user_id} purchase=${purchase.id}`);
+    return res.status(200).json({ ok: false, reason: 'payment_not_approved' });
   }
 
-  // Idempotency: check if this payment was already applied
+  // ── Idempotency: skip if this payment was already applied ───────────────────
   const { data: duplicate } = await supabase
     .from('purchases')
     .select('id')
@@ -72,7 +96,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({ ok: true, already_applied: true });
   }
 
-  // Get current credits
+  // ── Get current credits ─────────────────────────────────────────────────────
   const { data: profile } = await supabase
     .from('profiles')
     .select('credits')
@@ -87,7 +111,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const creditsToAdd = Number(purchase.credits);
   const newCredits = Number(profile.credits ?? 0) + creditsToAdd;
 
-  // Apply credits
+  // ── Apply credits ───────────────────────────────────────────────────────────
   const { error: creditErr } = await supabase
     .from('profiles')
     .update({ credits: newCredits })
@@ -98,7 +122,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Failed to update credits' });
   }
 
-  // Mark purchase as approved
+  // ── Mark purchase as approved ───────────────────────────────────────────────
   await supabase
     .from('purchases')
     .update({
@@ -108,7 +132,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
     .eq('id', purchase.id);
 
-  console.log(`[verify-payment] ✓ user=${user_id} +${creditsToAdd} credits → total=${newCredits} payment=${payment.id}`);
+  console.log(
+    `[verify-payment] ✓ user=${user_id} +${creditsToAdd} credits → total=${newCredits}` +
+    ` payment=${payment.id} purchase=${purchase.id}`
+  );
 
   return res.status(200).json({ ok: true, credits_added: creditsToAdd, new_total: newCredits });
 }

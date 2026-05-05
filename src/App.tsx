@@ -2252,31 +2252,36 @@ export default function App() {
       // Verify payment with MP API and apply credits immediately (no webhook dependency)
       supabase.auth.getUser().then(async ({ data: { user: u } }) => {
         if (!u) return;
-        try {
-          const res = await fetch('/api/verify-payment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: u.id }),
-          });
-          const data = await res.json();
-          if (data.ok) {
-            // Reload profile to reflect new credits (realtime also fires, this is a safety net)
-            loadProfile(u.id);
-          } else {
-            console.warn('[payment] verify-payment returned:', data.reason);
-            // Retry once after 5s in case MP needs a moment to index the payment
-            setTimeout(async () => {
-              const res2 = await fetch('/api/verify-payment', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: u.id }),
-              });
-              const data2 = await res2.json();
-              if (data2.ok) loadProfile(u.id);
-            }, 5000);
+
+        const tryVerify = async (): Promise<boolean> => {
+          try {
+            const res = await fetch('/api/verify-payment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user_id: u.id }),
+            });
+            const data = await res.json();
+            console.log('[payment] verify-payment response:', data);
+            if (data.ok) {
+              // Reload profile to reflect new credits (realtime also fires, this is a safety net)
+              const { data: freshProfile } = await supabase.from('profiles').select('*').eq('id', u.id).single();
+              if (freshProfile) setProfile(freshProfile);
+              return true;
+            }
+            return false;
+          } catch (e) {
+            console.error('[payment] verify-payment error:', e);
+            return false;
           }
-        } catch (e) {
-          console.error('[payment] verify-payment error:', e);
+        };
+
+        // Retry up to 5 times with increasing delays: 2s, 4s, 7s, 10s, 15s
+        const delays = [2000, 4000, 7000, 10000, 15000];
+        for (const delay of delays) {
+          await new Promise(r => setTimeout(r, delay));
+          const ok = await tryVerify();
+          if (ok) break;
+          console.warn(`[payment] Attempt with delay=${delay}ms failed, retrying...`);
         }
       });
     } else {
