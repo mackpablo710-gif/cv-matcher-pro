@@ -1786,16 +1786,23 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
     if (!creditModal || !newCredits) return;
     setSaving(true);
     const amount = parseInt(newCredits);
-    const pkg = packages.find(p => p.credits === amount) || packages[0];
-    await supabase.from('purchases').insert({
-      user_id: creditModal.userId,
-      package_id: pkg?.id || null,
-      credits: amount,
-      price: 0,
-      status: 'admin_grant',
-      note: note || `Otorgado por admin`,
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) { setSaving(false); return; }
+
+    // Use backend endpoint — service role bypasses the RLS decrease-only policy
+    const res = await fetch('/api/admin-grant-credits', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        admin_user_id: session.user.id,
+        target_user_id: creditModal.userId,
+        amount,
+        note: note || `Otorgado por admin`,
+      }),
     });
-    await supabase.from('profiles').update({ credits: creditModal.current + amount }).eq('id', creditModal.userId);
+    const data = await res.json();
+    if (!data.ok) console.error('[admin] grant credits failed:', data.error);
+
     setCreditModal(null); setNewCredits(''); setNote('');
     setSaving(false);
     await loadAll();

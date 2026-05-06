@@ -25,6 +25,7 @@
     { "source": "/api/mp-webhook", "destination": "/api/mp-webhook" },
     { "source": "/api/verify-payment", "destination": "/api/verify-payment" },
     { "source": "/api/admin-delete-user", "destination": "/api/admin-delete-user" },
+    { "source": "/api/admin-grant-credits", "destination": "/api/admin-grant-credits" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
