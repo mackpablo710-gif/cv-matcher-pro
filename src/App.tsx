@@ -530,7 +530,7 @@ const LandingPage = ({ onStart, onAuth }: { onStart: () => void; onAuth: () => v
   if (showAuth) return <AuthScreen onAuth={onAuth} initialMode={authMode} />;
 
   const steps = [
-    { n: '01', icon: FileText, title: 'Sube tu CV', desc: 'Carga tu currículum en PDF o pégalo como texto. Listo en segundos.' },
+    { n: '01', icon: FileText, title: 'Sube tu CV', desc: 'Carga tu currículum en PDF o pégalo como texto.' },
     { n: '02', icon: Target, title: 'Pega la oferta laboral', desc: 'Copia la descripción del cargo al que quieres postular.' },
     { n: '03', icon: Zap, title: 'Análisis inteligente', desc: 'Comparamos tu experiencia, habilidades y trayectoria con lo que busca la empresa.' },
     { n: '04', icon: RefreshCw, title: 'Optimiza tu CV automáticamente', desc: 'CV JOB reescribe tu CV alineándolo con el cargo: mejora tu resumen, ajusta tu experiencia e incorpora las palabras clave que buscan los reclutadores.' },
@@ -2784,14 +2784,14 @@ export default function App() {
                           </div>
                         </div>
                       ) : (
-                        <div className="text-center py-8">
+                        <button className="text-center py-8 w-full hover:bg-zinc-50 rounded-2xl transition-colors cursor-pointer" onClick={() => setShowCVManager(true)}>
                           <div className="w-14 h-14 bg-zinc-100 rounded-2xl flex items-center justify-center mx-auto mb-4"><Upload className="w-6 h-6 text-zinc-400" /></div>
                           <p className="font-bold text-zinc-900 mb-1">Sube tu CV</p>
                           <p className="text-xs text-zinc-400 mb-4">PDF · Máx 5MB</p>
-                          <Button variant="black" size="sm" onClick={() => setShowCVManager(true)}>
+                          <span className="inline-flex items-center gap-2 bg-zinc-900 text-white text-sm font-bold px-4 py-2 rounded-xl">
                             <Layers className="w-4 h-4" /> Mis CVs
-                          </Button>
-                        </div>
+                          </span>
+                        </button>
                       )}
                     </Card>
                     <Card noPadding className="flex flex-col">
