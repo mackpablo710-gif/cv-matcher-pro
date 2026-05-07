@@ -1208,6 +1208,7 @@ const Dashboard = ({ userId, credits, onLoadAdaptation, onNew, onBuy }: {
   const [search, setSearch] = useState('');
   const [editingCompany, setEditingCompany] = useState<string | null>(null);
   const [companyDraft, setCompanyDraft] = useState('');
+  const [interviewModal, setInterviewModal] = useState<any | null>(null);
 
   useEffect(() => { fetchHistory(); }, []);
   useEffect(() => {
@@ -1238,6 +1239,7 @@ const Dashboard = ({ userId, credits, onLoadAdaptation, onNew, onBuy }: {
   const fullAdaptations = items.filter(i => i.final_score > 0).length;
 
   return (
+    <>
     <div className="min-h-screen bg-zinc-50">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
         {/* Stats grid: 2 cols on mobile, 4 on desktop */}
@@ -1337,6 +1339,15 @@ const Dashboard = ({ userId, credits, onLoadAdaptation, onNew, onBuy }: {
                       )}
                       <p className="text-xs text-zinc-400 mt-0.5">{new Date(item.created_at).toLocaleDateString('es-CL')} · {item.language || 'Español'}</p>
                     </div>
+                    {/* Interview button — shown when questions exist */}
+                    {Array.isArray(item.analysis?.preguntas) && item.analysis.preguntas.length > 0 && (
+                      <button
+                        onClick={e => { e.stopPropagation(); setInterviewModal(item); }}
+                        className="shrink-0 hidden sm:flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 px-3 py-2 rounded-xl transition-colors whitespace-nowrap"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" /> Prepara tu entrevista
+                      </button>
+                    )}
                     <div className="flex items-center gap-2 sm:gap-4 shrink-0">
                       <div className="text-center">
                         <p className="text-[10px] text-zinc-400 font-medium">Inicial</p>
@@ -1359,6 +1370,67 @@ const Dashboard = ({ userId, credits, onLoadAdaptation, onNew, onBuy }: {
         </Card>
       </div>
     </div>
+
+    {/* Interview questions modal */}
+    <AnimatePresence>
+      {interviewModal && (() => {
+        const questions: { tipo: string; pregunta: string; tip: string }[] =
+          Array.isArray(interviewModal.analysis?.preguntas) ? interviewModal.analysis.preguntas : [];
+        return (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setInterviewModal(null)}>
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
+              onClick={e => e.stopPropagation()}>
+              {/* Header */}
+              <div className="p-6 border-b border-zinc-100 flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
+                    <MessageSquare className="w-5 h-5 text-indigo-600" />
+                  </div>
+                  <div>
+                    <h2 className="font-black text-zinc-900">Prepara tu entrevista</h2>
+                    <p className="text-xs text-zinc-400 mt-0.5 truncate max-w-xs">
+                      {interviewModal.job_title}{interviewModal.company_name ? ` · ${interviewModal.company_name}` : ''}
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setInterviewModal(null)} className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-zinc-100 shrink-0">
+                  <X className="w-5 h-5 text-zinc-400" />
+                </button>
+              </div>
+              {/* Questions */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                {(['tecnica', 'conductual', 'cargo'] as const).map(tipo => {
+                  const grupo = questions.filter(q => q.tipo === tipo);
+                  if (!grupo.length) return null;
+                  const meta = TIPO_LABEL[tipo];
+                  return (
+                    <div key={tipo}>
+                      <span className={cn('inline-block text-[10px] font-black uppercase tracking-widest border rounded-full px-2.5 py-0.5 mb-2', meta.color)}>
+                        {meta.label}
+                      </span>
+                      <div className="space-y-2">
+                        {grupo.map((q, i) => (
+                          <div key={i} className="bg-zinc-50 rounded-xl px-4 py-3 border border-zinc-100">
+                            <p className="text-sm font-semibold text-zinc-800">{q.pregunta}</p>
+                            {q.tip && (
+                              <p className="text-xs text-indigo-600 mt-1.5 flex items-start gap-1">
+                                <span className="shrink-0 font-bold">💡</span> {q.tip}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </div>
+        );
+      })()}
+    </AnimatePresence>
+    </>
   );
 };
 
