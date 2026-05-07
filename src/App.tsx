@@ -1742,6 +1742,7 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
   const [deleteModal, setDeleteModal] = useState<{ userId: string; email: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [userSearch, setUserSearch] = useState('');
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
 
   useEffect(() => {
     loadAll();
@@ -1764,7 +1765,7 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('packages').select('*').order('sort_order'),
       supabase.from('purchases').select('*').order('created_at', { ascending: false }),
-      supabase.from('adaptations').select('id, user_id, initial_score, final_score, created_at'),
+      supabase.from('adaptations').select('id, user_id, job_title, company_name, initial_score, final_score, created_at'),
     ]);
     setUsers(u.data || []);
     setPackages(pkg.data || []);
@@ -1877,62 +1878,122 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? <div className="text-center py-12 text-zinc-400">Cargando datos...</div> : (
             <>
-              {tab === 'overview' && (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {[
-                      { label: 'Total usuarios', value: users.length, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-                      { label: 'Usuarios activos (7d)', value: activeUsers, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-                      { label: 'Matches iniciales', value: initialMatchCount, icon: Target, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-                      { label: 'CVs optimizados', value: fullAdaptCount, icon: Zap, color: 'text-purple-600', bg: 'bg-purple-50' },
-                    ].map((s, i) => (
-                      <Card key={i} className="p-5">
-                        <div className="flex items-center gap-3">
-                          <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', s.bg)}>
-                            <s.icon className={cn('w-5 h-5', s.color)} />
+              {tab === 'overview' && (() => {
+                // ── Daily activity chart (last 14 days) ──────────────────────
+                const today = new Date(); today.setHours(23, 59, 59, 999);
+                const days14 = Array.from({ length: 14 }, (_, i) => {
+                  const d = new Date(today); d.setDate(d.getDate() - (13 - i));
+                  return d;
+                });
+                const dayStats = days14.map(d => {
+                  const label = d.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit' });
+                  const start = new Date(d); start.setHours(0, 0, 0, 0);
+                  const end = new Date(d); end.setHours(23, 59, 59, 999);
+                  const dayAdapts = adaptations.filter(a => {
+                    const t = new Date(a.created_at).getTime();
+                    return t >= start.getTime() && t <= end.getTime();
+                  });
+                  return {
+                    label,
+                    matches: dayAdapts.filter(a => a.initial_score > 0).length,
+                    full: dayAdapts.filter(a => a.final_score > 0).length,
+                  };
+                });
+                const maxVal = Math.max(...dayStats.map(d => d.matches), 1);
+
+                return (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {[
+                        { label: 'Total usuarios', value: users.length, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+                        { label: 'Usuarios activos (7d)', value: activeUsers, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                        { label: 'Matches iniciales', value: initialMatchCount, icon: Target, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                        { label: 'CVs optimizados', value: fullAdaptCount, icon: Zap, color: 'text-purple-600', bg: 'bg-purple-50' },
+                      ].map((s, i) => (
+                        <Card key={i} className="p-5">
+                          <div className="flex items-center gap-3">
+                            <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', s.bg)}>
+                              <s.icon className={cn('w-5 h-5', s.color)} />
+                            </div>
+                            <div><p className="text-2xl font-black text-zinc-900">{s.value}</p><p className="text-xs text-zinc-500">{s.label}</p></div>
                           </div>
-                          <div><p className="text-2xl font-black text-zinc-900">{s.value}</p><p className="text-xs text-zinc-500">{s.label}</p></div>
+                        </Card>
+                      ))}
+                    </div>
+
+                    {/* Daily activity chart */}
+                    <Card className="p-5">
+                      <h3 className="text-sm font-black text-zinc-500 uppercase tracking-widest mb-4">Actividad diaria — últimos 14 días</h3>
+                      <div className="flex items-end gap-1 h-28">
+                        {dayStats.map((d, i) => (
+                          <div key={i} className="flex-1 flex flex-col items-center gap-0.5 group relative">
+                            {/* Tooltip */}
+                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-900 text-white text-xs px-2 py-1 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                              {d.matches} match · {d.full} adapt.
+                            </div>
+                            <div className="w-full flex flex-col-reverse gap-px">
+                              {/* Full adaptations (purple, stacked on top) */}
+                              {d.full > 0 && (
+                                <div className="w-full bg-purple-500 rounded-t-sm"
+                                  style={{ height: `${Math.round((d.full / maxVal) * 88)}px` }} />
+                              )}
+                              {/* Initial matches only (indigo) */}
+                              {(d.matches - d.full) > 0 && (
+                                <div className={cn('w-full bg-indigo-400', d.full === 0 ? 'rounded-t-sm' : '')}
+                                  style={{ height: `${Math.round(((d.matches - d.full) / maxVal) * 88)}px` }} />
+                              )}
+                              {d.matches === 0 && (
+                                <div className="w-full bg-zinc-100 rounded-sm" style={{ height: '4px' }} />
+                              )}
+                            </div>
+                            <p className="text-[9px] text-zinc-400 mt-1 rotate-0 leading-none">{d.label}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-4 mt-3">
+                        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-indigo-400" /><span className="text-xs text-zinc-500">Match inicial</span></div>
+                        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-purple-500" /><span className="text-xs text-zinc-500">Adaptación completa</span></div>
+                      </div>
+                    </Card>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <Card className="p-5">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center"><DollarSign className="w-5 h-5 text-green-600" /></div>
+                          <div><p className="text-2xl font-black text-zinc-900">{formatCLP(totalRevenue)}</p><p className="text-xs text-zinc-500">Ingresos totales</p></div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm"><span className="text-zinc-500">Compras realizadas</span><span className="font-bold">{realPurchases.length}</span></div>
+                          <div className="flex justify-between text-sm"><span className="text-zinc-500">Créditos vendidos</span><span className="font-bold">{totalCredits}</span></div>
+                          <div className="flex justify-between text-sm"><span className="text-zinc-500">Créditos otorgados (admin)</span><span className="font-bold text-indigo-600">{adminGrants.reduce((a, p) => a + p.credits, 0)}</span></div>
                         </div>
                       </Card>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Card className="p-5">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center"><DollarSign className="w-5 h-5 text-green-600" /></div>
-                        <div><p className="text-2xl font-black text-zinc-900">{formatCLP(totalRevenue)}</p><p className="text-xs text-zinc-500">Ingresos totales</p></div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm"><span className="text-zinc-500">Compras realizadas</span><span className="font-bold">{realPurchases.length}</span></div>
-                        <div className="flex justify-between text-sm"><span className="text-zinc-500">Créditos vendidos</span><span className="font-bold">{totalCredits}</span></div>
-                        <div className="flex justify-between text-sm"><span className="text-zinc-500">Créditos otorgados (admin)</span><span className="font-bold text-indigo-600">{adminGrants.reduce((a, p) => a + p.credits, 0)}</span></div>
-                      </div>
-                    </Card>
-                    <Card className="p-5">
-                      <h3 className="text-sm font-black text-zinc-500 uppercase tracking-widest mb-3">Últimas compras reales</h3>
-                      {realPurchases.length === 0 && (
-                        <p className="text-sm text-zinc-400 text-center py-3">Sin compras aprobadas aún</p>
-                      )}
-                      {realPurchases.slice(0, 5).map((p, i) => {
-                        const u = users.find(u => u.id === p.user_id);
-                        const date = p.created_at ? new Date(p.created_at).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
-                        return (
-                          <div key={i} className="flex items-center justify-between py-2 text-sm border-b border-zinc-50 last:border-0">
-                            <div className="min-w-0">
-                              <p className="text-zinc-800 font-semibold truncate max-w-[170px]">{u?.full_name || u?.email || 'Usuario'}</p>
-                              <p className="text-xs text-zinc-400">{date}</p>
+                      <Card className="p-5">
+                        <h3 className="text-sm font-black text-zinc-500 uppercase tracking-widest mb-3">Últimas compras reales</h3>
+                        {realPurchases.length === 0 && (
+                          <p className="text-sm text-zinc-400 text-center py-3">Sin compras aprobadas aún</p>
+                        )}
+                        {realPurchases.slice(0, 5).map((p, i) => {
+                          const u = users.find(u => u.id === p.user_id);
+                          const date = p.created_at ? new Date(p.created_at).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+                          return (
+                            <div key={i} className="flex items-center justify-between py-2 text-sm border-b border-zinc-50 last:border-0">
+                              <div className="min-w-0">
+                                <p className="text-zinc-800 font-semibold truncate max-w-[170px]">{u?.full_name || u?.email || 'Usuario'}</p>
+                                <p className="text-xs text-zinc-400">{date}</p>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <Badge color="indigo">{p.credits} cr.</Badge>
+                                <span className="font-bold text-zinc-900">{formatCLP(p.price)}</span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <Badge color="indigo">{p.credits} cr.</Badge>
-                              <span className="font-bold text-zinc-900">{formatCLP(p.price)}</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </Card>
+                          );
+                        })}
+                      </Card>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {tab === 'users' && (
                 <div className="space-y-3">
@@ -1991,6 +2052,9 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
                               <p className="text-xs text-zinc-400">completas / total</p>
                             </div>
                             <div className="flex flex-col gap-1.5">
+                              <Button size="sm" variant="secondary" onClick={() => setSelectedUser(u)}>
+                                <UserIcon className="w-3.5 h-3.5" /> Ver perfil
+                              </Button>
                               <Button size="sm" variant="outline" onClick={() => setCreditModal({ userId: u.id, email: u.email, name: u.full_name || u.email, current: u.credits })}>
                                 <Plus className="w-3.5 h-3.5" /> Créditos
                               </Button>
@@ -2132,6 +2196,139 @@ const AdminPanel = ({ onClose }: { onClose: () => void }) => {
           )}
         </div>
       </motion.div>
+
+      {/* User profile drawer */}
+      {selectedUser && (() => {
+        const u = selectedUser;
+        const userAdapts = adaptations.filter((a: any) => a.user_id === u.id)
+          .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        const userPurchases = purchases.filter((p: any) => p.user_id === u.id)
+          .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        const matchOnly = userAdapts.filter(a => a.initial_score > 0 && !a.final_score).length;
+        const fullAdapts = userAdapts.filter(a => a.final_score > 0).length;
+
+        return (
+          <div className="fixed inset-0 bg-black/40 z-60 flex justify-end" onClick={() => setSelectedUser(null)}>
+            <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="bg-white w-full max-w-lg h-full shadow-2xl overflow-y-auto flex flex-col"
+              onClick={e => e.stopPropagation()}>
+
+              {/* Header */}
+              <div className="p-6 border-b border-zinc-100 flex items-center justify-between sticky top-0 bg-white z-10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                    <span className="text-indigo-700 font-black text-lg">{(u.full_name || u.email || '?')[0].toUpperCase()}</span>
+                  </div>
+                  <div>
+                    <p className="font-black text-zinc-900">{u.full_name || u.email}</p>
+                    {u.full_name && <p className="text-xs text-zinc-400">{u.email}</p>}
+                  </div>
+                </div>
+                <button onClick={() => setSelectedUser(null)} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-zinc-100">
+                  <X className="w-4 h-4 text-zinc-500" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6 flex-1">
+                {/* Stats row */}
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: 'Créditos', value: u.credits, color: u.credits <= 2 ? 'text-red-500' : 'text-zinc-900' },
+                    { label: 'Solo match', value: matchOnly, color: 'text-indigo-600' },
+                    { label: 'Adaptación completa', value: fullAdapts, color: 'text-purple-600' },
+                  ].map((s, i) => (
+                    <div key={i} className="bg-zinc-50 rounded-2xl p-4 text-center">
+                      <p className={cn('text-2xl font-black', s.color)}>{s.value}</p>
+                      <p className="text-xs text-zinc-400 mt-0.5">{s.label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Meta */}
+                <div className="text-sm text-zinc-500 space-y-1">
+                  <p><span className="font-semibold text-zinc-700">Registro:</span> {new Date(u.created_at).toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                  <p><span className="font-semibold text-zinc-700">Última conexión:</span>{' '}
+                    {u.last_active_at
+                      ? new Date(u.last_active_at).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+                      : 'Sin datos'}
+                  </p>
+                  {u.is_admin && <Badge color="indigo">Admin</Badge>}
+                </div>
+
+                {/* Adaptations */}
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-widest text-zinc-400 mb-3">Historial de uso ({userAdapts.length})</h4>
+                  {userAdapts.length === 0 && <p className="text-sm text-zinc-400 text-center py-4">Sin actividad aún</p>}
+                  <div className="space-y-2">
+                    {userAdapts.map((a: any, i: number) => {
+                      const isComplete = a.final_score > 0;
+                      const date = new Date(a.created_at).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+                      return (
+                        <div key={i} className={cn('flex items-start gap-3 p-3 rounded-xl border', isComplete ? 'border-purple-100 bg-purple-50/50' : 'border-indigo-100 bg-indigo-50/30')}>
+                          <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5', isComplete ? 'bg-purple-100' : 'bg-indigo-100')}>
+                            {isComplete ? <Zap className="w-3.5 h-3.5 text-purple-600" /> : <Target className="w-3.5 h-3.5 text-indigo-500" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-zinc-900 text-sm truncate">{a.job_title || 'Cargo sin nombre'}</p>
+                            {a.company_name && <p className="text-xs text-zinc-400 truncate">{a.company_name}</p>}
+                            <div className="flex items-center gap-3 mt-1">
+                              <span className="text-xs text-zinc-400">{date}</span>
+                              <span className={cn('text-xs font-bold', isComplete ? 'text-purple-600' : 'text-indigo-500')}>
+                                {isComplete ? `Match ${a.initial_score}% → Adapt. ${a.final_score}%` : `Match ${a.initial_score}% (solo análisis)`}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Purchases */}
+                {userPurchases.length > 0 && (
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-widest text-zinc-400 mb-3">Transacciones ({userPurchases.length})</h4>
+                    <div className="space-y-2">
+                      {userPurchases.map((p: any, i: number) => {
+                        const date = p.created_at ? new Date(p.created_at).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '';
+                        const isApproved = p.status === 'approved';
+                        const isGrant = p.status === 'admin_grant';
+                        const isAbandoned = p.status === 'initiated' || p.status === 'pending';
+                        return (
+                          <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-zinc-50 text-sm">
+                            <div>
+                              <p className="font-semibold text-zinc-800">{isGrant ? 'Otorgado por admin' : `${p.credits} créditos`}</p>
+                              <p className="text-xs text-zinc-400">{date}</p>
+                            </div>
+                            <div className="text-right">
+                              {p.price > 0 && <p className="font-bold text-zinc-900">{formatCLP(p.price)}</p>}
+                              <p className={cn('text-xs font-bold', isApproved ? 'text-emerald-600' : isGrant ? 'text-indigo-600' : isAbandoned ? 'text-zinc-400' : 'text-red-500')}>
+                                {isApproved ? '✓ Aprobado' : isGrant ? 'Admin' : isAbandoned ? 'No efectuado' : p.status}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer actions */}
+              <div className="p-4 border-t border-zinc-100 flex gap-2 sticky bottom-0 bg-white">
+                <Button variant="outline" className="flex-1" onClick={() => { setSelectedUser(null); setCreditModal({ userId: u.id, email: u.email, name: u.full_name || u.email, current: u.credits }); }}>
+                  <Plus className="w-4 h-4" /> Otorgar créditos
+                </Button>
+                {!u.is_admin && (
+                  <Button variant="danger" onClick={() => { setSelectedUser(null); setDeleteModal({ userId: u.id, email: u.email, name: u.full_name || u.email }); }}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        );
+      })()}
 
       {/* Grant credits modal */}
       {creditModal && (
