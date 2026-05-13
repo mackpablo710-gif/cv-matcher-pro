@@ -535,7 +535,7 @@ const LandingPage = ({ onStart, onAuth }: { onStart: () => void; onAuth: () => v
     { n: '03', icon: Zap, title: 'Análisis inteligente', desc: 'Comparamos tu experiencia, habilidades y trayectoria con lo que busca la empresa.' },
     { n: '04', icon: RefreshCw, title: 'Optimiza tu CV automáticamente', desc: 'CV JOB reescribe tu CV alineándolo con el cargo: mejora tu resumen, ajusta tu experiencia e incorpora las palabras clave que buscan los reclutadores.' },
     { n: '05', icon: MessageSquare, title: 'Prepárate para la entrevista', desc: 'Generamos 9 preguntas de entrevista específicas al cargo y a tu perfil: técnicas, conductuales y del rol, cada una con un tip personalizado basado en tu CV.' },
-    { n: '06', icon: TrendingUp, title: 'Aumenta tus probabilidades', desc: 'Obtendrás un CV optimizado y listo para enviar, más las herramientas para destacar en la entrevista.' },
+    { n: 'Resultado', icon: TrendingUp, title: 'Aumenta tus probabilidades', desc: 'Obtendrás un CV optimizado y listo para enviar, más las herramientas para destacar en la entrevista.' },
   ];
 
   const whys = [
