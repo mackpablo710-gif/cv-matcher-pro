@@ -2708,7 +2708,7 @@ export default function App() {
           .select('id', { count: 'exact', head: true })
           .eq('user_id', user.id)
           .eq('final_score', guardedAdapted);
-        if ((count ?? 0) >= 2) guardedAdapted = Math.min(99, guardedAdapted + 1);
+        if ((count ?? 0) >= 2) guardedAdapted = Math.max(initialScore + 2, guardedAdapted - 1);
       }
 
       const guardedAnalysis = result?.analisis
