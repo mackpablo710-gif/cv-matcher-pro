@@ -1,10 +1,45 @@
-import React, { useEffect, useState } from 'react';
-import { Plus, Users, TrendingUp, Target, Award, Trash2, X, Check, Building2, RefreshCw } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Plus, Users, TrendingUp, Target, Award, Trash2, X,
+  Building2, RefreshCw, Upload, UserPlus, AlertTriangle,
+  CheckCircle2, FileSpreadsheet, ShieldCheck,
+} from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
 import type { University, UniversityUser } from './types';
 import { KANBAN_COLUMNS } from './types';
 
 function cn(...c: (string | undefined | false)[]) { return c.filter(Boolean).join(' '); }
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+interface ImportRow { name: string; email: string; program: string; }
+
+function parseExcel(file: File): Promise<ImportRow[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data  = new Uint8Array(e.target!.result as ArrayBuffer);
+        const wb    = XLSX.read(data, { type: 'array' });
+        const ws    = wb.Sheets[wb.SheetNames[0]];
+        const rows  = XLSX.utils.sheet_to_json<any>(ws, { defval: '' });
+        // Accept headers: Nombre/Name, Mail/Email, Master/Program/Programa
+        const out: ImportRow[] = rows.map((r: any) => ({
+          name:    (r['Nombre'] || r['Name']  || r['nombre'] || '').toString().trim(),
+          email:   (r['Mail']   || r['Email'] || r['mail']   || r['email'] || '').toString().trim().toLowerCase(),
+          program: (r['Master'] || r['Programa'] || r['Program'] || r['master'] || '').toString().trim(),
+        })).filter((r: ImportRow) => r.email);
+        resolve(out);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export const UniversityDashboard: React.FC = () => {
   const [unis,    setUnis]    = useState<University[]>([]);
@@ -14,12 +49,31 @@ export const UniversityDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [tab,     setTab]     = useState<'overview' | 'students' | 'applications'>('overview');
 
-  // Add university form
+  // Admin user (for API calls)
+  const [adminId, setAdminId] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setAdminId(data.user?.id ?? null));
+  }, []);
+
+  // ── Add university form ───────────────────────────────────────────────────
   const [showUniForm, setShowUniForm] = useState(false);
-  const [uniForm, setUniForm] = useState({ name: '', slug: '', credits_per_user: '5', max_users: '100', plan: 'starter' });
+  const [uniForm, setUniForm] = useState({
+    name: '', slug: '', credits_per_user: '5', credits_per_month: '5', max_users: '100', plan: 'starter',
+  });
   const [saving, setSaving] = useState(false);
 
-  // Add student form
+  // ── Delete university ─────────────────────────────────────────────────────
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null); // uni id to delete
+  const [deleting, setDeleting] = useState(false);
+
+  // ── Add coordinator ───────────────────────────────────────────────────────
+  const [showCoordForm, setShowCoordForm] = useState(false);
+  const [coordEmail, setCoordEmail] = useState('');
+  const [addingCoord, setAddingCoord] = useState(false);
+  const [coordError, setCoordError] = useState('');
+  const [coordSuccess, setCoordSuccess] = useState('');
+
+  // ── Add student (manual) ──────────────────────────────────────────────────
   const [showStudentForm, setShowStudentForm] = useState(false);
   const [studentEmail, setStudentEmail] = useState('');
   const [studentCareer, setStudentCareer] = useState('');
@@ -27,12 +81,21 @@ export const UniversityDashboard: React.FC = () => {
   const [addingStudent, setAddingStudent] = useState(false);
   const [studentError, setStudentError] = useState('');
 
+  // ── Excel import ──────────────────────────────────────────────────────────
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importRows,    setImportRows]    = useState<ImportRow[]>([]);
+  const [showImport,    setShowImport]    = useState(false);
+  const [importing,     setImporting]     = useState(false);
+  const [importResult,  setImportResult]  = useState<{ created: number; enrolled: number; skipped: number; errors: string[] } | null>(null);
+
+  // ── Load ─────────────────────────────────────────────────────────────────
   useEffect(() => { loadAll(); }, []);
   useEffect(() => { if (selUni) loadUniData(selUni); }, [selUni]);
 
   const loadAll = async () => {
     setLoading(true);
-    const { data } = await supabase.from('universities').select('*').order('created_at', { ascending: false });
+    const { data } = await supabase
+      .from('universities').select('*').eq('active', true).order('created_at', { ascending: false });
     setUnis(data || []);
     if (data && data.length > 0 && !selUni) setSelUni(data[0].id);
     setLoading(false);
@@ -51,28 +114,81 @@ export const UniversityDashboard: React.FC = () => {
     setApps(aRes.data || []);
   };
 
+  // ── Create university ─────────────────────────────────────────────────────
   const saveUni = async () => {
     if (!uniForm.name.trim()) return;
     setSaving(true);
     const slug = uniForm.slug || uniForm.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
     await supabase.from('universities').insert({
       name: uniForm.name.trim(), slug,
-      credits_per_user: parseInt(uniForm.credits_per_user) || 5,
+      credits_per_user:  parseInt(uniForm.credits_per_user)  || 5,
+      credits_per_month: parseInt(uniForm.credits_per_month) || 5,
       max_users: parseInt(uniForm.max_users) || 100,
       plan: uniForm.plan,
+      active: true,
     });
     setSaving(false);
     setShowUniForm(false);
-    setUniForm({ name: '', slug: '', credits_per_user: '5', max_users: '100', plan: 'starter' });
+    setUniForm({ name: '', slug: '', credits_per_user: '5', credits_per_month: '5', max_users: '100', plan: 'starter' });
     loadAll();
   };
 
+  // ── Delete university ─────────────────────────────────────────────────────
+  const deleteUni = async (uniId: string) => {
+    setDeleting(true);
+    await supabase.from('universities').update({ active: false }).eq('id', uniId);
+    setDeleting(false);
+    setDeleteConfirm(null);
+    if (selUni === uniId) setSelUni(null);
+    loadAll();
+  };
+
+  // ── Add coordinator ───────────────────────────────────────────────────────
+  const addCoordinator = async () => {
+    if (!coordEmail.trim() || !selUni) return;
+    setAddingCoord(true); setCoordError(''); setCoordSuccess('');
+
+    const { data: prof } = await supabase
+      .from('profiles').select('id, full_name').eq('email', coordEmail.trim().toLowerCase()).maybeSingle();
+
+    if (!prof) {
+      setCoordError('No existe un usuario con ese email en CVJOB. El coordinador debe registrarse primero.');
+      setAddingCoord(false); return;
+    }
+
+    // Upsert: if already enrolled as student, upgrade to coordinator
+    const { data: existing } = await supabase
+      .from('university_users').select('id, role')
+      .eq('user_id', prof.id).eq('university_id', selUni).maybeSingle();
+
+    if (existing) {
+      await supabase.from('university_users')
+        .update({ role: 'coordinator', active: true }).eq('id', existing.id);
+    } else {
+      const { error } = await supabase.from('university_users').insert({
+        university_id: selUni, user_id: prof.id, role: 'coordinator', active: true,
+      });
+      if (error) {
+        setCoordError('Error al agregar coordinador'); setAddingCoord(false); return;
+      }
+    }
+
+    setCoordSuccess(`${prof.full_name || coordEmail} ahora es coordinador de esta institución`);
+    setCoordEmail('');
+    setAddingCoord(false);
+    loadUniData(selUni);
+  };
+
+  // ── Add student (manual) ─────────────────────────────────────────────────
   const addStudent = async () => {
     if (!studentEmail.trim() || !selUni) return;
     setAddingStudent(true); setStudentError('');
-    // Find profile by email
-    const { data: prof } = await supabase.from('profiles').select('id').eq('email', studentEmail.trim().toLowerCase()).maybeSingle();
-    if (!prof) { setStudentError('No existe un usuario con ese email en CVJOB'); setAddingStudent(false); return; }
+    const { data: prof } = await supabase
+      .from('profiles').select('id').eq('email', studentEmail.trim().toLowerCase()).maybeSingle();
+    if (!prof) {
+      setStudentError('No existe un usuario con ese email en CVJOB');
+      setAddingStudent(false); return;
+    }
     const { error } = await supabase.from('university_users').insert({
       university_id: selUni, user_id: prof.id, role: 'student',
       career: studentCareer || null, cohort: studentCohort || null,
@@ -84,20 +200,57 @@ export const UniversityDashboard: React.FC = () => {
     loadUniData(selUni);
   };
 
+  // ── Excel import ──────────────────────────────────────────────────────────
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const rows = await parseExcel(file);
+      setImportRows(rows);
+      setShowImport(true);
+      setImportResult(null);
+    } catch {
+      alert('Error al leer el archivo. Asegúrate de que sea .xlsx o .xls con columnas: Nombre, Mail, Master');
+    }
+    e.target.value = '';
+  };
+
+  const runImport = async () => {
+    if (!importRows.length || !selUni || !adminId) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const res = await fetch('/api/campus-import-students', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_user_id: adminId, university_id: selUni, students: importRows }),
+      });
+      const data = await res.json();
+      setImportResult(data);
+      loadUniData(selUni);
+    } catch {
+      setImportResult({ created: 0, enrolled: 0, skipped: 0, errors: ['Error de conexión'] });
+    }
+    setImporting(false);
+  };
+
   const removeStudent = async (id: string) => {
     await supabase.from('university_users').update({ active: false }).eq('id', id);
     setUsers(prev => prev.filter(u => u.id !== id));
   };
 
-  const selectedUni = unis.find(u => u.id === selUni);
-  const interviewCount = apps.filter(a => ['interview','final_interview'].includes(a.status)).length;
-  const hiredCount     = apps.filter(a => a.status === 'hired').length;
-  const offerCount     = apps.filter(a => a.status === 'offer').length;
+  // ── Derived ───────────────────────────────────────────────────────────────
+  const selectedUni     = unis.find(u => u.id === selUni);
+  const interviewCount  = apps.filter(a => ['interview','final_interview'].includes(a.status)).length;
+  const hiredCount      = apps.filter(a => a.status === 'hired').length;
+  const studentList     = users.filter(u => u.role === 'student');
+  const coordList       = users.filter(u => u.role === 'coordinator' || u.role === 'admin');
 
   if (loading) return <div className="flex items-center justify-center h-64 text-zinc-400">Cargando...</div>;
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-black text-zinc-900">Panel Universidad</h2>
@@ -117,42 +270,62 @@ export const UniversityDashboard: React.FC = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-          {/* Sidebar universities */}
+
+          {/* ── Sidebar: university list ─────────────────────────────────── */}
           <div className="space-y-2">
             {unis.map(u => (
-              <button key={u.id} onClick={() => setSelUni(u.id)}
+              <div key={u.id}
                 className={cn(
-                  'w-full text-left px-4 py-3 rounded-xl border transition-all',
+                  'w-full text-left rounded-xl border transition-all group',
                   selUni === u.id
-                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                    : 'bg-white border-zinc-100 text-zinc-700 hover:bg-zinc-50'
+                    ? 'bg-indigo-50 border-indigo-200'
+                    : 'bg-white border-zinc-100 hover:bg-zinc-50'
                 )}>
-                <p className="font-bold text-sm">{u.name}</p>
-                <p className="text-xs opacity-60 mt-0.5 capitalize">{u.plan} · {u.credits_per_user} créditos/alumno</p>
-              </button>
+                <div className="flex items-center gap-2 px-4 py-3">
+                  <button onClick={() => setSelUni(u.id)} className="flex-1 text-left min-w-0">
+                    <p className={cn('font-bold text-sm', selUni === u.id ? 'text-indigo-700' : 'text-zinc-700')}>
+                      {u.name}
+                    </p>
+                    <p className="text-xs opacity-60 mt-0.5 capitalize">
+                      {u.plan} · {u.credits_per_month ?? u.credits_per_user} créditos/mes
+                    </p>
+                  </button>
+                  {/* Delete button */}
+                  <button
+                    onClick={() => setDeleteConfirm(u.id)}
+                    className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-lg hover:bg-red-50 text-zinc-300 hover:text-red-400 transition-all shrink-0">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
 
-          {/* Main content */}
+          {/* ── Main content ─────────────────────────────────────────────── */}
           {selectedUni && (
             <div className="lg:col-span-3 space-y-4">
-              {/* Uni header */}
+
+              {/* Uni header banner */}
               <div className="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-2xl p-5 text-white">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-xl font-black">{selectedUni.name}</h3>
-                    <p className="text-white/70 text-sm mt-0.5 capitalize">{selectedUni.plan} plan · {selectedUni.max_users} alumnos máx.</p>
+                    <p className="text-white/70 text-sm mt-0.5 capitalize">
+                      {selectedUni.plan} plan · {selectedUni.max_users} alumnos máx.
+                      · {selectedUni.credits_per_month ?? selectedUni.credits_per_user} créditos/mes
+                    </p>
                   </div>
-                  <button onClick={() => loadUniData(selUni!)} className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
+                  <button onClick={() => loadUniData(selUni!)}
+                    className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
                     <RefreshCw className="w-4 h-4" />
                   </button>
                 </div>
                 <div className="grid grid-cols-4 gap-3 mt-4">
                   {[
-                    { label: 'Alumnos', value: users.length },
+                    { label: 'Alumnos',       value: studentList.length },
                     { label: 'Postulaciones', value: apps.length },
-                    { label: 'Entrevistas', value: interviewCount },
-                    { label: 'Contratados', value: hiredCount },
+                    { label: 'Entrevistas',   value: interviewCount },
+                    { label: 'Contratados',   value: hiredCount },
                   ].map(s => (
                     <div key={s.label} className="bg-white/10 rounded-xl p-2.5 text-center">
                       <p className="text-2xl font-black">{s.value}</p>
@@ -162,7 +335,64 @@ export const UniversityDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Tabs */}
+              {/* ── Coordinator section ───────────────────────────────────── */}
+              <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-zinc-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-violet-500" />
+                    <p className="font-black text-zinc-900 text-sm">Coordinadores</p>
+                    <span className="text-xs text-zinc-400">(pueden ver Panel Universidad)</span>
+                  </div>
+                  <button onClick={() => { setShowCoordForm(v => !v); setCoordError(''); setCoordSuccess(''); }}
+                    className="flex items-center gap-1.5 text-xs font-bold text-violet-600 bg-violet-50 hover:bg-violet-100 px-3 py-1.5 rounded-lg transition-colors">
+                    <UserPlus className="w-3.5 h-3.5" /> Agregar coordinador
+                  </button>
+                </div>
+
+                {showCoordForm && (
+                  <div className="px-4 py-3 bg-violet-50 border-b border-violet-100">
+                    <div className="flex gap-2">
+                      <input value={coordEmail}
+                        onChange={e => { setCoordEmail(e.target.value); setCoordError(''); setCoordSuccess(''); }}
+                        placeholder="email@coordinador.cl"
+                        className="flex-1 border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-violet-400 bg-white" />
+                      <button onClick={addCoordinator} disabled={addingCoord || !coordEmail.trim()}
+                        className="px-4 py-2 text-sm font-bold bg-violet-600 text-white rounded-xl hover:bg-violet-700 disabled:opacity-50 transition-colors">
+                        {addingCoord ? '...' : 'Asignar'}
+                      </button>
+                    </div>
+                    {coordError   && <p className="mt-2 text-xs text-red-600">{coordError}</p>}
+                    {coordSuccess && <p className="mt-2 text-xs text-emerald-600 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" />{coordSuccess}</p>}
+                    <p className="mt-2 text-[10px] text-zinc-400">El coordinador debe tener una cuenta en CVJOB. Podrá ver el Panel Universidad en Campus.</p>
+                  </div>
+                )}
+
+                <div className="divide-y divide-zinc-50">
+                  {coordList.map(u => (
+                    <div key={u.id} className="flex items-center gap-3 px-4 py-3">
+                      <div className="w-8 h-8 bg-violet-100 rounded-full flex items-center justify-center shrink-0">
+                        <span className="text-xs font-black text-violet-700">
+                          {(u.profile?.full_name || u.profile?.email || '?')[0].toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-zinc-900 text-sm truncate">{u.profile?.full_name || '—'}</p>
+                        <p className="text-xs text-zinc-400 truncate">{u.profile?.email}</p>
+                      </div>
+                      <span className="text-xs font-bold text-violet-700 bg-violet-50 px-2 py-0.5 rounded-full capitalize">{u.role}</span>
+                      <button onClick={() => removeStudent(u.id)}
+                        className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-zinc-300 hover:text-red-400 transition-colors">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {coordList.length === 0 && (
+                    <div className="p-4 text-center text-zinc-400 text-xs">Sin coordinadores asignados</div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Sub-tabs ─────────────────────────────────────────────── */}
               <div className="flex gap-1 bg-zinc-100 rounded-xl p-1">
                 {(['overview','students','applications'] as const).map(t => (
                   <button key={t} onClick={() => setTab(t)}
@@ -197,15 +427,25 @@ export const UniversityDashboard: React.FC = () => {
               {/* TAB: Students */}
               {tab === 'students' && (
                 <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
-                  <div className="p-4 border-b border-zinc-100 flex items-center justify-between">
-                    <p className="font-black text-zinc-900">{users.length} alumnos activos</p>
-                    <button onClick={() => setShowStudentForm(true)}
-                      className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
-                      <Plus className="w-3.5 h-3.5" /> Agregar alumno
-                    </button>
+                  <div className="p-4 border-b border-zinc-100 flex items-center justify-between gap-2">
+                    <p className="font-black text-zinc-900">{studentList.length} alumnos activos</p>
+                    <div className="flex items-center gap-2">
+                      {/* Excel import button */}
+                      <button onClick={() => fileRef.current?.click()}
+                        className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
+                        <FileSpreadsheet className="w-3.5 h-3.5" /> Importar Excel
+                      </button>
+                      <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={onFileChange} />
+                      {/* Manual add */}
+                      <button onClick={() => setShowStudentForm(true)}
+                        className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
+                        <Plus className="w-3.5 h-3.5" /> Agregar
+                      </button>
+                    </div>
                   </div>
+
                   <div className="divide-y divide-zinc-50">
-                    {users.map(u => (
+                    {studentList.map(u => (
                       <div key={u.id} className="flex items-center gap-3 px-4 py-3">
                         <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center shrink-0">
                           <span className="text-xs font-black text-indigo-700">
@@ -214,8 +454,8 @@ export const UniversityDashboard: React.FC = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-zinc-900 text-sm truncate">{u.profile?.full_name || '—'}</p>
-                          <p className="text-xs text-zinc-400 truncate">{u.profile?.email}
-                            {u.career ? ` · ${u.career}` : ''}{u.cohort ? ` · ${u.cohort}` : ''}
+                          <p className="text-xs text-zinc-400 truncate">
+                            {u.profile?.email}{u.career ? ` · ${u.career}` : ''}{u.cohort ? ` · ${u.cohort}` : ''}
                           </p>
                         </div>
                         <div className="text-right shrink-0">
@@ -232,7 +472,7 @@ export const UniversityDashboard: React.FC = () => {
                         </button>
                       </div>
                     ))}
-                    {users.length === 0 && (
+                    {studentList.length === 0 && (
                       <div className="p-8 text-center text-zinc-400 text-sm">
                         Aún no hay alumnos en esta institución
                       </div>
@@ -254,7 +494,9 @@ export const UniversityDashboard: React.FC = () => {
                         <div key={a.id} className="flex items-center gap-3 px-4 py-3">
                           <div className="flex-1 min-w-0">
                             <p className="font-semibold text-zinc-900 text-sm truncate">{a.position}</p>
-                            <p className="text-xs text-zinc-400 truncate">{a.company} · {a.profile?.full_name || a.profile?.email}</p>
+                            <p className="text-xs text-zinc-400 truncate">
+                              {a.company} · {a.profile?.full_name || a.profile?.email}
+                            </p>
                           </div>
                           <span className={cn('shrink-0 text-xs font-bold px-2.5 py-1 rounded-full', col?.bg, col?.color)}>
                             {col?.label}
@@ -273,6 +515,40 @@ export const UniversityDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* ════ MODALS ════════════════════════════════════════════════════════════ */}
+
+      {/* Delete university confirmation */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setDeleteConfirm(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-red-500" />
+              </div>
+              <div>
+                <h3 className="font-black text-zinc-900">Eliminar institución</h3>
+                <p className="text-xs text-zinc-400">Esta acción se puede deshacer contactando soporte</p>
+              </div>
+            </div>
+            <p className="text-sm text-zinc-600 mb-5">
+              ¿Confirmas que quieres eliminar <strong>{unis.find(u => u.id === deleteConfirm)?.name}</strong>?
+              Los alumnos y postulaciones no se eliminarán.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setDeleteConfirm(null)}
+                className="flex-1 px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-100 rounded-xl transition-colors">
+                Cancelar
+              </button>
+              <button onClick={() => deleteUni(deleteConfirm)} disabled={deleting}
+                className="flex-1 px-4 py-2 text-sm font-bold bg-red-600 text-white rounded-xl hover:bg-red-700 disabled:opacity-50 transition-colors">
+                {deleting ? 'Eliminando...' : 'Sí, eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add university modal */}
       {showUniForm && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
@@ -288,8 +564,8 @@ export const UniversityDashboard: React.FC = () => {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Créditos / alumno</label>
-                  <input type="number" value={uniForm.credits_per_user} onChange={e => setUniForm(f => ({ ...f, credits_per_user: e.target.value }))}
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Créditos mensuales</label>
+                  <input type="number" value={uniForm.credits_per_month} onChange={e => setUniForm(f => ({ ...f, credits_per_month: e.target.value }))}
                     className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
                 </div>
                 <div>
@@ -307,6 +583,9 @@ export const UniversityDashboard: React.FC = () => {
                   <option value="enterprise">Enterprise</option>
                 </select>
               </div>
+              <p className="text-xs text-zinc-400 bg-zinc-50 rounded-xl p-3">
+                Los créditos mensuales se cargan automáticamente el día 1 de cada mes a todos los alumnos activos.
+              </p>
               <div className="flex gap-2 pt-1">
                 <button onClick={() => setShowUniForm(false)} className="px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-100 rounded-xl">Cancelar</button>
                 <button onClick={saveUni} disabled={saving || !uniForm.name.trim()}
@@ -319,7 +598,7 @@ export const UniversityDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Add student modal */}
+      {/* Add student modal (manual) */}
       {showStudentForm && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={() => setShowStudentForm(false)}>
@@ -333,7 +612,7 @@ export const UniversityDashboard: React.FC = () => {
                   className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
               </div>
               <div>
-                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Carrera / Programa</label>
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Programa / Master</label>
                 <input value={studentCareer} onChange={e => setStudentCareer(e.target.value)} placeholder="MBA, Ing. Comercial..."
                   className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
               </div>
@@ -351,6 +630,98 @@ export const UniversityDashboard: React.FC = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Excel import preview modal */}
+      {showImport && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => { if (!importing) { setShowImport(false); setImportResult(null); } }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                <h3 className="font-black text-zinc-900">Importar alumnos</h3>
+              </div>
+              {!importing && (
+                <button onClick={() => { setShowImport(false); setImportResult(null); }}
+                  className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-zinc-100">
+                  <X className="w-4 h-4 text-zinc-400" />
+                </button>
+              )}
+            </div>
+
+            {!importResult ? (
+              <>
+                <p className="text-sm text-zinc-500 mb-3">
+                  Se encontraron <strong>{importRows.length} alumnos</strong> en el archivo.
+                  Se enviará un email de invitación a los que no tengan cuenta en CVJOB.
+                </p>
+                {/* Preview table */}
+                <div className="border border-zinc-100 rounded-xl overflow-hidden mb-4">
+                  <div className="grid grid-cols-3 bg-zinc-50 px-3 py-2 text-xs font-black text-zinc-400 uppercase tracking-wider">
+                    <span>Nombre</span><span>Email</span><span>Programa</span>
+                  </div>
+                  <div className="divide-y divide-zinc-50 max-h-48 overflow-y-auto">
+                    {importRows.map((r, i) => (
+                      <div key={i} className="grid grid-cols-3 px-3 py-2 text-xs text-zinc-700">
+                        <span className="truncate">{r.name || '—'}</span>
+                        <span className="truncate text-zinc-500">{r.email}</span>
+                        <span className="truncate text-zinc-400">{r.program || '—'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => { setShowImport(false); setImportResult(null); }}
+                    className="px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-100 rounded-xl">
+                    Cancelar
+                  </button>
+                  <button onClick={runImport} disabled={importing}
+                    className="flex-1 py-2 text-sm font-bold bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                    {importing ? (
+                      <><RefreshCw className="w-4 h-4 animate-spin" /> Importando...</>
+                    ) : (
+                      <><Upload className="w-4 h-4" /> Importar {importRows.length} alumnos</>
+                    )}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="space-y-3 mb-5">
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: 'Cuentas creadas', value: importResult.created, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                      { label: 'Matriculados',    value: importResult.enrolled, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                      { label: 'Ya existían',     value: importResult.skipped, color: 'text-zinc-500', bg: 'bg-zinc-50' },
+                    ].map(s => (
+                      <div key={s.label} className={cn('rounded-xl p-3 text-center', s.bg)}>
+                        <p className={cn('text-2xl font-black', s.color)}>{s.value}</p>
+                        <p className="text-xs text-zinc-500 mt-0.5">{s.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {importResult.created > 0 && (
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-xs text-emerald-700">
+                      ✅ Se enviaron emails de invitación a los {importResult.created} alumnos nuevos.
+                      Deben hacer clic en el link para activar su cuenta.
+                    </div>
+                  )}
+                  {importResult.errors.length > 0 && (
+                    <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-xs text-red-600">
+                      <p className="font-bold mb-1">{importResult.errors.length} errores:</p>
+                      {importResult.errors.slice(0, 5).map((e, i) => <p key={i}>{e}</p>)}
+                    </div>
+                  )}
+                </div>
+                <button onClick={() => { setShowImport(false); setImportResult(null); }}
+                  className="w-full py-2.5 text-sm font-bold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 rounded-xl transition-colors">
+                  Cerrar
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

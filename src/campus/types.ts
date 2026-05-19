@@ -7,6 +7,7 @@ export interface University {
   logo_url?: string;
   plan: 'starter' | 'pro' | 'enterprise';
   credits_per_user: number;
+  credits_per_month: number;
   max_users: number;
   active: boolean;
   created_at: string;
