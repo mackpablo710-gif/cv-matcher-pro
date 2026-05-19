@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Plus, Users, TrendingUp, Target, Award, Trash2, X,
   Building2, RefreshCw, Upload, UserPlus, AlertTriangle,
-  CheckCircle2, FileSpreadsheet, ShieldCheck,
+  CheckCircle2, FileSpreadsheet, ShieldCheck, Zap,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
@@ -80,6 +80,28 @@ export const UniversityDashboard: React.FC = () => {
   const [studentCohort, setStudentCohort] = useState('');
   const [addingStudent, setAddingStudent] = useState(false);
   const [studentError, setStudentError] = useState('');
+
+  // ── Monthly credits ───────────────────────────────────────────────────────
+  const [grantingCredits,  setGrantingCredits]  = useState(false);
+  const [creditGrantResult, setCreditGrantResult] = useState<{ processed: number; skipped: number } | null>(null);
+
+  const grantMonthlyCredits = async () => {
+    if (!adminId) return;
+    setGrantingCredits(true);
+    setCreditGrantResult(null);
+    try {
+      const res = await fetch('/api/campus-monthly-credits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_user_id: adminId }),
+      });
+      const data = await res.json();
+      setCreditGrantResult({ processed: data.processed ?? 0, skipped: data.skipped ?? 0 });
+    } catch {
+      setCreditGrantResult({ processed: 0, skipped: -1 }); // -1 = error flag
+    }
+    setGrantingCredits(false);
+  };
 
   // ── Excel import ──────────────────────────────────────────────────────────
   const fileRef = useRef<HTMLInputElement>(null);
@@ -315,11 +337,38 @@ export const UniversityDashboard: React.FC = () => {
                       · {selectedUni.credits_per_month ?? selectedUni.credits_per_user} créditos/mes
                     </p>
                   </div>
-                  <button onClick={() => loadUniData(selUni!)}
-                    className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {/* Grant monthly credits button */}
+                    <button onClick={grantMonthlyCredits} disabled={grantingCredits}
+                      title="Cargar créditos del mes a todos los alumnos activos"
+                      className="flex items-center gap-1.5 text-xs font-bold bg-white/15 hover:bg-white/25 disabled:opacity-50 px-3 py-1.5 rounded-xl transition-colors">
+                      <Zap className={cn('w-3.5 h-3.5', grantingCredits && 'animate-pulse')} />
+                      {grantingCredits ? 'Cargando...' : 'Cargar créditos del mes'}
+                    </button>
+                    <button onClick={() => loadUniData(selUni!)}
+                      className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
+                {/* Credit grant result toast */}
+                {creditGrantResult && (
+                  <div className={cn(
+                    'mt-3 rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-2',
+                    creditGrantResult.skipped === -1
+                      ? 'bg-red-500/30 text-red-100'
+                      : 'bg-white/15 text-white'
+                  )}>
+                    {creditGrantResult.skipped === -1 ? (
+                      <><AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Error al cargar créditos. Intenta de nuevo.</>
+                    ) : (
+                      <><CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                        {creditGrantResult.processed} alumnos recibieron créditos
+                        {creditGrantResult.skipped > 0 ? ` · ${creditGrantResult.skipped} ya los tenían este mes` : ''}
+                      </>
+                    )}
+                  </div>
+                )}
                 <div className="grid grid-cols-4 gap-3 mt-4">
                   {[
                     { label: 'Alumnos',       value: studentList.length },
