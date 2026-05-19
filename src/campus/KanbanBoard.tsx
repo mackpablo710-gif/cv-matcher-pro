@@ -109,12 +109,12 @@ export const KanbanBoard: React.FC<Props> = ({ userId }) => {
   if (loading) return <div className="flex items-center justify-center h-64 text-zinc-400">Cargando tablero...</div>;
 
   return (
-    <div className="h-full flex flex-col gap-4">
+    <div className="flex flex-col gap-4" style={{ minHeight: 'calc(100vh - 120px)' }}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-black text-zinc-900">Kanban de Postulaciones</h2>
-          <p className="text-zinc-500 text-sm mt-0.5">Arrastra las tarjetas para actualizar el estado</p>
+          <h2 className="text-2xl font-black text-zinc-900">Historial de postulaciones</h2>
+          <p className="text-zinc-500 text-sm mt-0.5">Arrastra las tarjetas para actualizar el estado · {apps.length} postulación{apps.length !== 1 ? 'es' : ''}</p>
         </div>
         <button onClick={openAdd}
           className="flex items-center gap-2 bg-indigo-600 text-white font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200">
@@ -123,17 +123,17 @@ export const KanbanBoard: React.FC<Props> = ({ userId }) => {
       </div>
 
       {/* Kanban columns — horizontal scroll on mobile */}
-      <div className="flex gap-3 overflow-x-auto pb-2 flex-1" style={{ minHeight: 0 }}>
+      <div className="flex gap-3 overflow-x-auto pb-4 flex-1" style={{ minHeight: 500 }}>
         {KANBAN_COLUMNS.map(col => {
           const items = byStatus(col.id);
           const isOver = overCol === col.id;
           return (
             <div key={col.id}
               className={cn(
-                'flex flex-col rounded-2xl border-2 transition-colors shrink-0 w-56 sm:w-64',
+                'flex flex-col rounded-2xl border-2 transition-colors shrink-0 w-60 sm:w-72',
                 isOver ? 'border-indigo-400 bg-indigo-50' : 'border-transparent bg-zinc-100'
               )}
-              style={{ minHeight: 200 }}
+              style={{ minHeight: 500 }}
               onDragOver={e => onDragOver(e, col.id)}
               onDrop={e => onDrop(e, col.id)}
               onDragLeave={() => setOverCol(null)}

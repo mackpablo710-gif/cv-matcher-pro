@@ -4,8 +4,15 @@
   "framework": "vite",
   "functions": {
     "api/create-preference.ts": { "maxDuration": 30 },
-    "api/mp-webhook.ts": { "maxDuration": 30 }
+    "api/mp-webhook.ts": { "maxDuration": 30 },
+    "api/campus-monthly-credits.ts": { "maxDuration": 60 }
   },
+  "crons": [
+    {
+      "path": "/api/campus-monthly-credits",
+      "schedule": "0 8 1 * *"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
@@ -27,6 +34,7 @@
     { "source": "/api/admin-delete-user", "destination": "/api/admin-delete-user" },
     { "source": "/api/admin-grant-credits", "destination": "/api/admin-grant-credits" },
     { "source": "/api/campus-verify", "destination": "/api/campus-verify" },
+    { "source": "/api/campus-monthly-credits", "destination": "/api/campus-monthly-credits" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

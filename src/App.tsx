@@ -2842,6 +2842,7 @@ export default function App() {
             user={user}
             isAdmin={isAdmin}
             onExit={() => setView('dashboard')}
+            onNewAdaptation={startNewWorkflow}
           />
         ) : view === 'dashboard' ? (
           <motion.div key="dashboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
