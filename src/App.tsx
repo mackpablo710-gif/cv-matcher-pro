@@ -2483,6 +2483,7 @@ export default function App() {
   const steps = ['Preparación', 'Match Inicial', 'Idioma', 'Adaptación', 'Exportar'];
   const credits = profile?.credits ?? 0;
   const isAdmin = profile?.is_admin ?? false;
+  const [isCampusUser, setIsCampusUser] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -2586,6 +2587,10 @@ export default function App() {
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
     if (data) {
       setProfile(data);
+      // Check campus membership (coordinator / student)
+      supabase.from('university_users')
+        .select('id').eq('user_id', userId).eq('active', true).maybeSingle()
+        .then(({ data: cu }) => setIsCampusUser(!!cu));
     } else {
       // Create profile if trigger didn't fire yet
       const u = (await supabase.auth.getUser()).data.user;
@@ -2783,17 +2788,17 @@ export default function App() {
               <CreditCard className="w-3.5 h-3.5 text-indigo-600" />
               <span className="text-sm font-black text-indigo-700">{isAdmin ? '∞' : credits}</span>
             </div>
-            {isAdmin && (
-              <>
+            {(isAdmin || isCampusUser) && (
               <button onClick={() => setView('campus')}
-                title="CVJOB Campus (admin)"
+                title="CVJOB Campus"
                 className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded-xl transition-colors border border-indigo-100">
                 <GraduationCap className="w-3.5 h-3.5" /> Campus
               </button>
+            )}
+            {isAdmin && (
               <button onClick={() => setShowAdmin(true)} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors">
                 <Shield className="w-4 h-4" />
               </button>
-              </>
             )}
             <div className="flex items-center gap-2 text-sm text-zinc-600">
               <div className="w-7 h-7 bg-indigo-100 rounded-full flex items-center justify-center">
@@ -2834,8 +2839,8 @@ export default function App() {
       </AnimatePresence>
 
       <AnimatePresence mode="wait">
-        {view === 'campus' && isAdmin ? (
-          // ── CVJOB Campus — admin only, invisible to regular users ─────────────
+        {view === 'campus' && (isAdmin || isCampusUser) ? (
+          // ── CVJOB Campus — admin + campus users ──────────────────────────────
           <CampusApp
             key="campus"
             profile={profile}

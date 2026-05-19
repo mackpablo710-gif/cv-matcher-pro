@@ -24,12 +24,20 @@ function parseExcel(file: File): Promise<ImportRow[]> {
         const wb    = XLSX.read(data, { type: 'array' });
         const ws    = wb.Sheets[wb.SheetNames[0]];
         const rows  = XLSX.utils.sheet_to_json<any>(ws, { defval: '' });
-        // Accept headers: Nombre/Name, Mail/Email, Master/Program/Programa
-        const out: ImportRow[] = rows.map((r: any) => ({
-          name:    (r['Nombre'] || r['Name']  || r['nombre'] || '').toString().trim(),
-          email:   (r['Mail']   || r['Email'] || r['mail']   || r['email'] || '').toString().trim().toLowerCase(),
-          program: (r['Master'] || r['Programa'] || r['Program'] || r['master'] || '').toString().trim(),
-        })).filter((r: ImportRow) => r.email);
+        // Accept headers: Nombre + Apellido (separados) o Name (combinado), Mail/Email, Master/Program
+        const out: ImportRow[] = rows.map((r: any) => {
+          // Combinar Nombre + Apellido si vienen en columnas separadas
+          const nombre   = (r['Nombre']   || r['nombre']   || '').toString().trim();
+          const apellido = (r['Apellido'] || r['apellido'] || '').toString().trim();
+          const name = nombre && apellido
+            ? `${nombre} ${apellido}`
+            : (nombre || apellido || r['Name'] || r['name'] || '').toString().trim();
+          return {
+            name,
+            email:   (r['Mail'] || r['Email'] || r['mail'] || r['email'] || '').toString().trim().toLowerCase(),
+            program: (r['Master'] || r['Programa'] || r['Program'] || r['master'] || r['Programa/Master'] || '').toString().trim(),
+          };
+        }).filter((r: ImportRow) => r.email);
         resolve(out);
       } catch (err) {
         reject(err);
@@ -48,6 +56,7 @@ export const UniversityDashboard: React.FC = () => {
   const [selUni,  setSelUni]  = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab,     setTab]     = useState<'overview' | 'students' | 'applications'>('overview');
+  const [cvStats, setCvStats] = useState({ initial: 0, adapted: 0 });
 
   // Admin user (for API calls)
   const [adminId, setAdminId] = useState<string | null>(null);
@@ -75,11 +84,12 @@ export const UniversityDashboard: React.FC = () => {
 
   // ── Add student (manual) ──────────────────────────────────────────────────
   const [showStudentForm, setShowStudentForm] = useState(false);
-  const [studentEmail, setStudentEmail] = useState('');
+  const [studentName,   setStudentName]   = useState('');
+  const [studentEmail,  setStudentEmail]  = useState('');
   const [studentCareer, setStudentCareer] = useState('');
   const [studentCohort, setStudentCohort] = useState('');
   const [addingStudent, setAddingStudent] = useState(false);
-  const [studentError, setStudentError] = useState('');
+  const [studentError,  setStudentError]  = useState('');
 
   // ── Monthly credits ───────────────────────────────────────────────────────
   const [grantingCredits,  setGrantingCredits]  = useState(false);
@@ -132,8 +142,23 @@ export const UniversityDashboard: React.FC = () => {
         .select('*, profile:profiles(full_name, email)')
         .eq('university_id', uniId).order('created_at', { ascending: false }),
     ]);
-    setUsers(uRes.data || []);
+    const allUsers = uRes.data || [];
+    setUsers(allUsers);
     setApps(aRes.data || []);
+
+    // CV stats for students
+    const studentIds = allUsers.filter(u => u.role === 'student').map(u => u.user_id);
+    if (studentIds.length > 0) {
+      const [initRes, adaptRes] = await Promise.all([
+        supabase.from('adaptations').select('id', { count: 'exact', head: true })
+          .in('user_id', studentIds).gt('initial_score', 0),
+        supabase.from('adaptations').select('id', { count: 'exact', head: true })
+          .in('user_id', studentIds).gt('final_score', 0),
+      ]);
+      setCvStats({ initial: initRes.count || 0, adapted: adaptRes.count || 0 });
+    } else {
+      setCvStats({ initial: 0, adapted: 0 });
+    }
   };
 
   // ── Create university ─────────────────────────────────────────────────────
@@ -211,6 +236,10 @@ export const UniversityDashboard: React.FC = () => {
       setStudentError('No existe un usuario con ese email en CVJOB');
       setAddingStudent(false); return;
     }
+    // Update full_name in profile if a name was provided
+    if (studentName.trim()) {
+      await supabase.from('profiles').update({ full_name: studentName.trim() }).eq('id', prof.id);
+    }
     const { error } = await supabase.from('university_users').insert({
       university_id: selUni, user_id: prof.id, role: 'student',
       career: studentCareer || null, cohort: studentCohort || null,
@@ -218,7 +247,7 @@ export const UniversityDashboard: React.FC = () => {
     if (error) { setStudentError('Este usuario ya pertenece a la universidad'); setAddingStudent(false); return; }
     setAddingStudent(false);
     setShowStudentForm(false);
-    setStudentEmail(''); setStudentCareer(''); setStudentCohort('');
+    setStudentName(''); setStudentEmail(''); setStudentCareer(''); setStudentCohort('');
     loadUniData(selUni);
   };
 
@@ -456,20 +485,35 @@ export const UniversityDashboard: React.FC = () => {
 
               {/* TAB: Overview */}
               {tab === 'overview' && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {KANBAN_COLUMNS.map(col => {
-                    const count = apps.filter(a => a.status === col.id).length;
-                    return (
-                      <div key={col.id} className="bg-white rounded-xl p-4 border border-zinc-100 shadow-sm">
-                        <p className={cn('text-xs font-black uppercase tracking-wider', col.color)}>{col.label}</p>
-                        <p className="text-3xl font-black text-zinc-900 mt-1">{count}</p>
-                        <div className="mt-2 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
-                          <div className={cn('h-full rounded-full transition-all', col.bg.replace('50','400'))}
-                            style={{ width: `${apps.length > 0 ? (count/apps.length)*100 : 0}%` }} />
-                        </div>
+                <div className="space-y-3">
+                  {/* CV stats */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: 'CVs con match inicial', value: cvStats.initial, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                      { label: 'CVs adaptados',         value: cvStats.adapted, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                    ].map(s => (
+                      <div key={s.label} className={cn('rounded-xl p-4 border border-zinc-100 shadow-sm', s.bg)}>
+                        <p className={cn('text-xs font-black uppercase tracking-wider', s.color)}>{s.label}</p>
+                        <p className="text-3xl font-black text-zinc-900 mt-1">{s.value}</p>
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
+                  {/* Application funnel — excludes viewed & rejected */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {KANBAN_COLUMNS.filter(col => col.id !== 'viewed' && col.id !== 'rejected').map(col => {
+                      const count = apps.filter(a => a.status === col.id).length;
+                      return (
+                        <div key={col.id} className="bg-white rounded-xl p-4 border border-zinc-100 shadow-sm">
+                          <p className={cn('text-xs font-black uppercase tracking-wider', col.color)}>{col.label}</p>
+                          <p className="text-3xl font-black text-zinc-900 mt-1">{count}</p>
+                          <div className="mt-2 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+                            <div className={cn('h-full rounded-full transition-all', col.bg.replace('50','400'))}
+                              style={{ width: `${apps.length > 0 ? (count/apps.length)*100 : 0}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -650,13 +694,19 @@ export const UniversityDashboard: React.FC = () => {
       {/* Add student modal (manual) */}
       {showStudentForm && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => setShowStudentForm(false)}>
+          onClick={() => { setShowStudentForm(false); setStudentName(''); setStudentEmail(''); setStudentCareer(''); setStudentCohort(''); setStudentError(''); }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
             <h3 className="font-black text-zinc-900 mb-4">Agregar alumno</h3>
             <div className="space-y-3">
               <div>
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Nombre completo</label>
+                <input value={studentName} onChange={e => setStudentName(e.target.value)} autoFocus
+                  placeholder="Juan Pérez"
+                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
+              </div>
+              <div>
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Email del alumno *</label>
-                <input value={studentEmail} onChange={e => setStudentEmail(e.target.value)} autoFocus
+                <input value={studentEmail} onChange={e => setStudentEmail(e.target.value)}
                   placeholder="alumno@universidad.cl"
                   className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
               </div>

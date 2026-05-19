@@ -45,32 +45,34 @@ export const CampusApp: React.FC<Props> = ({
   const [verifying,    setVerifying]    = useState(true);
 
   useEffect(() => {
-    if (!isAdmin || !user) { onExit(); return; }
+    if (!user) { onExit(); return; }
     verifyAccess();
-  }, [isAdmin, user]);
+  }, [user]);
 
   const verifyAccess = async () => {
     try {
-      const res = await fetch('/api/campus-verify', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ user_id: user.id }),
-      });
-      const data = await res.json();
-      if (!data.ok) { onExit(); return; }
-
       if (isAdmin) {
+        // Super-admin: verify via backend (SERVICE_ROLE check)
+        const res = await fetch('/api/campus-verify', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ user_id: user.id }),
+        });
+        const data = await res.json();
+        if (!data.ok) { onExit(); return; }
         setCampusRole('admin');
-        // Super-admin has no specific university; universityId stays null
+        // universityId stays null — admin sees everything via RLS bypass
       } else {
+        // Campus user (coordinator / student): check university_users directly
         const { data: uUser } = await supabase
           .from('university_users')
           .select('role, university_id')
           .eq('user_id', user.id)
           .eq('active', true)
           .maybeSingle();
-        setCampusRole((uUser?.role as CampusRole) || 'student');
-        setUniversityId(uUser?.university_id ?? null);
+        if (!uUser) { onExit(); return; } // not a campus user → exit
+        setCampusRole((uUser.role as CampusRole) || 'student');
+        setUniversityId(uUser.university_id ?? null);
       }
 
       setVerified(true);
