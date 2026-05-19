@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { CampusApp } from './campus/CampusApp';
 import {
   FileText, Upload, ArrowRight, CheckCircle2, AlertCircle, Download,
   ChevronRight, ChevronLeft, Plus, Trash2, LogOut,
   User as UserIcon, Globe, Mail, Lock, Chrome, Target, Zap, Shield,
   ArrowUp, ArrowDown, Search, Star, BarChart2, Clock, RefreshCw, X, Layers,
   CreditCard, Settings, Users, ShoppingBag, TrendingUp, Edit2, Save, Check, Pencil,
-  DollarSign, Package, Loader2, MessageSquare
+  DollarSign, Package, Loader2, MessageSquare, GraduationCap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase, signInWithEmail, signUpWithEmail, signOut, signInWithGoogle, resetPasswordForEmail, updatePassword } from './lib/supabase';
@@ -2460,7 +2461,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [view, setView] = useState<'dashboard' | 'workflow'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'workflow' | 'campus'>('dashboard');
   const [isRecoveringPassword, setIsRecoveringPassword] = useState(false);
   const alreadyLoggedInRef = useRef(false);
 
@@ -2772,9 +2773,16 @@ export default function App() {
               <span className="text-sm font-black text-indigo-700">{isAdmin ? '∞' : credits}</span>
             </div>
             {isAdmin && (
+              <>
+              <button onClick={() => setView('campus')}
+                title="CVJOB Campus (admin)"
+                className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded-xl transition-colors border border-indigo-100">
+                <GraduationCap className="w-3.5 h-3.5" /> Campus
+              </button>
               <button onClick={() => setShowAdmin(true)} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors">
                 <Shield className="w-4 h-4" />
               </button>
+              </>
             )}
             <div className="flex items-center gap-2 text-sm text-zinc-600">
               <div className="w-7 h-7 bg-indigo-100 rounded-full flex items-center justify-center">
@@ -2815,7 +2823,16 @@ export default function App() {
       </AnimatePresence>
 
       <AnimatePresence mode="wait">
-        {view === 'dashboard' ? (
+        {view === 'campus' && isAdmin ? (
+          // ── CVJOB Campus — admin only, invisible to regular users ─────────────
+          <CampusApp
+            key="campus"
+            profile={profile}
+            user={user}
+            isAdmin={isAdmin}
+            onExit={() => setView('dashboard')}
+          />
+        ) : view === 'dashboard' ? (
           <motion.div key="dashboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 text-white">
               <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

@@ -26,6 +26,7 @@
     { "source": "/api/verify-payment", "destination": "/api/verify-payment" },
     { "source": "/api/admin-delete-user", "destination": "/api/admin-delete-user" },
     { "source": "/api/admin-grant-credits", "destination": "/api/admin-grant-credits" },
+    { "source": "/api/campus-verify", "destination": "/api/campus-verify" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
