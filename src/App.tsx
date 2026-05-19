@@ -2699,7 +2699,18 @@ export default function App() {
       // Guardrail: adapted score must ALWAYS be at least initialScore + 2
       const initialScore = initialMatch?.score || result?.analisis?.match_score_original || 0;
       const rawAdapted = result?.analisis?.match_score_adapted || 0;
-      const guardedAdapted = Math.max(initialScore + 2, rawAdapted);
+      let guardedAdapted = Math.max(initialScore + 2, rawAdapted);
+
+      // Anti-repeat: if user already has 2+ adaptations with this exact score, shift by 1
+      if (user) {
+        const { count } = await supabase
+          .from('adaptations')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('final_score', guardedAdapted);
+        if ((count ?? 0) >= 2) guardedAdapted = Math.min(99, guardedAdapted + 1);
+      }
+
       const guardedAnalysis = result?.analisis
         ? { ...result.analisis, match_score_adapted: guardedAdapted }
         : null;
