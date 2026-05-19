@@ -75,6 +75,61 @@ export interface CareerStats {
   last_updated: string;
 }
 
+// ─── Community Types ─────────────────────────────────────────────────────────
+
+export interface CommunityProfile {
+  id: string;
+  user_id: string;
+  university_id: string | null;
+  headline: string | null;
+  industry: string | null;
+  skills: string[];
+  looking_for: string[];
+  offering: string[];
+  linkedin_url: string | null;
+  is_visible: boolean;
+  created_at: string;
+  // Joined from profiles
+  profile?: { full_name: string; email: string; };
+}
+
+export type PostType = 'marketplace' | 'opportunity' | 'startup' | 'team' | 'mentorship' | 'general';
+
+export interface CommunityPost {
+  id: string;
+  user_id: string;
+  university_id: string | null;
+  post_type: PostType;
+  category: 'busco' | 'ofrezco' | null;
+  title: string;
+  body: string | null;
+  tags: string[];
+  needs: string[];
+  startup_stage: string | null;
+  status: 'active' | 'closed' | 'hidden';
+  likes_count: number;
+  comments_count: number;
+  created_at: string;
+  author?: { full_name: string; email: string; };
+}
+
+export interface CampusEvent {
+  id: string;
+  university_id: string | null;
+  created_by: string;
+  title: string;
+  description: string | null;
+  event_type: 'charla' | 'networking' | 'hackathon' | 'reclutamiento' | 'otro';
+  event_date: string;
+  location: string | null;
+  is_online: boolean;
+  meeting_url: string | null;
+  status: 'upcoming' | 'past' | 'cancelled';
+  created_at: string;
+}
+
+// ─── Kanban ───────────────────────────────────────────────────────────────────
+
 export const KANBAN_COLUMNS: { id: ApplicationStatus; label: string; color: string; bg: string }[] = [
   { id: 'applied',         label: 'Postulado',        color: 'text-blue-600',   bg: 'bg-blue-50' },
   { id: 'viewed',          label: 'Visto',            color: 'text-violet-600', bg: 'bg-violet-50' },
