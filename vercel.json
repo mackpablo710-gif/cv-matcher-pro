@@ -7,12 +7,6 @@
     "api/mp-webhook.ts": { "maxDuration": 30 },
     "api/campus-monthly-credits.ts": { "maxDuration": 60 }
   },
-  "crons": [
-    {
-      "path": "/api/campus-monthly-credits",
-      "schedule": "0 8 1 * *"
-    }
-  ],
   "headers": [
     {
       "source": "/(.*)",
