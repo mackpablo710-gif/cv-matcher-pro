@@ -63,14 +63,24 @@ export const CampusApp: React.FC<Props> = ({
         setCampusRole('admin');
         // universityId stays null — admin sees everything via RLS bypass
       } else {
-        // Campus user (coordinator / student): check university_users directly
-        const { data: uUser } = await supabase
-          .from('university_users')
-          .select('role, university_id')
-          .eq('user_id', user.id)
-          .eq('active', true)
-          .maybeSingle();
-        if (!uUser) { onExit(); return; } // not a campus user → exit
+        // Campus user (coordinator / student)
+        // Try SECURITY DEFINER RPC first (bypasses RLS), then fall back to direct query
+        let uUser: { role: string; university_id: string } | null = null;
+
+        const { data: rpcData } = await supabase.rpc('get_my_campus_role');
+        if (rpcData && (rpcData as any[]).length > 0) {
+          uUser = (rpcData as any[])[0];
+        } else {
+          const { data: directData } = await supabase
+            .from('university_users')
+            .select('role, university_id')
+            .eq('user_id', user.id)
+            .eq('active', true)
+            .maybeSingle();
+          uUser = directData;
+        }
+
+        if (!uUser) { onExit(); return; }
         setCampusRole((uUser.role as CampusRole) || 'student');
         setUniversityId(uUser.university_id ?? null);
       }
@@ -118,11 +128,11 @@ export const CampusApp: React.FC<Props> = ({
 
           {/* Brand */}
           <div className="flex items-center gap-2.5 shrink-0">
-            <div className="w-7 h-7 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-lg flex items-center justify-center">
+            <div className="w-7 h-7 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-lg flex items-center justify-center">
               <GraduationCap className="w-4 h-4 text-white" />
             </div>
             <span className="font-black text-zinc-900 text-sm">
-              CVJOB <span className="text-indigo-600">Campus</span>
+              CVJOB <span className="text-teal-600">Campus</span>
             </span>
             <span className="text-xs font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md">BETA</span>
           </div>
@@ -134,7 +144,7 @@ export const CampusApp: React.FC<Props> = ({
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all whitespace-nowrap shrink-0',
                   activeTab === t.id
-                    ? 'bg-indigo-50 text-indigo-700'
+                    ? 'bg-teal-50 text-teal-700'
                     : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700'
                 )}>
                 <t.icon className="w-4 h-4" />

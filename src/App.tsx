@@ -2587,10 +2587,15 @@ export default function App() {
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
     if (data) {
       setProfile(data);
-      // Check campus membership (coordinator / student)
-      supabase.from('university_users')
-        .select('id').eq('user_id', userId).eq('active', true).maybeSingle()
-        .then(({ data: cu }) => setIsCampusUser(!!cu));
+      // Check campus membership via SECURITY DEFINER function (bypasses RLS)
+      supabase.rpc('is_campus_member')
+        .then(({ data }) => setIsCampusUser(data === true))
+        .catch(() => {
+          // Fallback: direct query (works if RLS allows it)
+          supabase.from('university_users')
+            .select('id').eq('user_id', userId).eq('active', true).maybeSingle()
+            .then(({ data: cu }) => setIsCampusUser(!!cu));
+        });
     } else {
       // Create profile if trigger didn't fire yet
       const u = (await supabase.auth.getUser()).data.user;

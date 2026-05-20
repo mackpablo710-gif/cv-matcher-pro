@@ -117,7 +117,7 @@ export const CommunityHub: React.FC<Props> = ({
     <div className="max-w-lg mx-auto">
       {!commProfile && (
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-200">
+          <div className="w-16 h-16 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-teal-200">
             <Users className="w-8 h-8 text-white" />
           </div>
           <h2 className="text-2xl font-black text-zinc-900">Únete a la Comunidad</h2>
@@ -145,7 +145,7 @@ export const CommunityHub: React.FC<Props> = ({
             onChange={e => setForm(f => ({ ...f, headline: e.target.value }))}
             placeholder="Ej: MBA Executive | Ex-Gerente Comercial BCI"
             autoFocus
-            className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
+            className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-teal-400"
           />
         </div>
 
@@ -155,7 +155,7 @@ export const CommunityHub: React.FC<Props> = ({
           <select
             value={form.industry}
             onChange={e => setForm(f => ({ ...f, industry: e.target.value }))}
-            className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-indigo-400 bg-white"
+            className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-teal-400 bg-white"
           >
             <option value="">Selecciona una industria...</option>
             {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
@@ -172,8 +172,8 @@ export const CommunityHub: React.FC<Props> = ({
                 className={cn(
                   'text-xs font-semibold px-3 py-1.5 rounded-full border transition-all',
                   form.looking_for.includes(opt)
-                    ? 'bg-indigo-600 text-white border-indigo-600'
-                    : 'bg-white text-zinc-600 border-zinc-200 hover:border-indigo-300'
+                    ? 'bg-teal-600 text-white border-teal-600'
+                    : 'bg-white text-zinc-600 border-zinc-200 hover:border-teal-300'
                 )}>
                 {opt}
               </button>
@@ -207,14 +207,14 @@ export const CommunityHub: React.FC<Props> = ({
             value={form.linkedin_url}
             onChange={e => setForm(f => ({ ...f, linkedin_url: e.target.value }))}
             placeholder="https://linkedin.com/in/tu-perfil"
-            className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
+            className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-teal-400"
           />
         </div>
 
         <button
           onClick={saveProfile}
           disabled={saving || !form.headline.trim() || !form.industry}
-          className="w-full py-3 text-sm font-bold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+          className="w-full py-3 text-sm font-bold bg-teal-600 text-white rounded-xl hover:bg-teal-700 disabled:opacity-50 transition-colors"
         >
           {saving ? 'Guardando...' : (commProfile ? 'Guardar cambios' : 'Entrar a la Comunidad →')}
         </button>
@@ -255,8 +255,8 @@ export const CommunityHub: React.FC<Props> = ({
       </div>
 
       {/* My profile chip */}
-      <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 rounded-2xl px-4 py-3 flex items-center gap-3">
-        <div className="w-10 h-10 bg-gradient-to-br from-indigo-400 to-violet-500 rounded-xl flex items-center justify-center shrink-0">
+      <div className="bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-100 rounded-2xl px-4 py-3 flex items-center gap-3">
+        <div className="w-10 h-10 bg-gradient-to-br from-teal-400 to-emerald-500 rounded-xl flex items-center justify-center shrink-0">
           <span className="text-sm font-black text-white">
             {(profile?.full_name || 'U')[0].toUpperCase()}
           </span>
@@ -267,7 +267,7 @@ export const CommunityHub: React.FC<Props> = ({
         </div>
         <div className="flex gap-1 shrink-0">
           {commProfile.looking_for.slice(0, 2).map(t => (
-            <span key={t} className="text-[10px] font-semibold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full hidden sm:block">{t}</span>
+            <span key={t} className="text-[10px] font-semibold text-teal-600 bg-teal-100 px-2 py-0.5 rounded-full hidden sm:block">{t}</span>
           ))}
         </div>
       </div>
