@@ -105,19 +105,25 @@ export const CampusApp: React.FC<Props> = ({
   if (!verified) return null;
 
   // ── Tab visibility ────────────────────────────────────────────────────────────
+  const isCoordinator    = campusRole === 'coordinator';
   const canSeeUniversity = campusRole === 'coordinator' || campusRole === 'admin';
 
   const tabs = [
-    { id: 'student_dash' as CampusTab, label: 'Mi Dashboard',        icon: LayoutDashboard },
-    { id: 'kanban'       as CampusTab, label: 'Mis Postulaciones',    icon: ClipboardList },
-    { id: 'community'   as CampusTab, label: 'Comunidad',            icon: Users },
+    // Coordinators only see community + university (no personal tabs)
+    ...(!isCoordinator ? [
+      { id: 'student_dash' as CampusTab, label: 'Mi Dashboard',     icon: LayoutDashboard },
+      { id: 'kanban'       as CampusTab, label: 'Mis Postulaciones', icon: ClipboardList },
+    ] : []),
+    { id: 'community' as CampusTab, label: 'Comunidad',            icon: Users },
     ...(canSeeUniversity
       ? [{ id: 'university' as CampusTab, label: 'Panel Universidad', icon: Building2 }]
       : []
     ),
   ];
 
-  const activeTab = tabs.find(t => t.id === tab) ? tab : 'student_dash';
+  // Coordinators land on university panel; others on dashboard
+  const activeTab = tabs.find(t => t.id === tab) ? tab
+    : (isCoordinator ? 'university' : 'student_dash');
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col">

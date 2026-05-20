@@ -28,6 +28,25 @@ function timeAgo(date: string): string {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
+// Colored left-border per post type for visual differentiation
+const TYPE_BORDER: Record<string, string> = {
+  'marketplace-busco':   'border-l-indigo-400',
+  'marketplace-ofrezco': 'border-l-emerald-400',
+  'opportunity':         'border-l-amber-400',
+  'mentorship':          'border-l-violet-400',
+  'team':                'border-l-blue-400',
+  'general':             'border-l-zinc-300',
+};
+
+const TYPE_AVATAR_BG: Record<string, string> = {
+  'marketplace-busco':   'from-indigo-400 to-indigo-600',
+  'marketplace-ofrezco': 'from-emerald-400 to-emerald-600',
+  'opportunity':         'from-amber-400 to-amber-600',
+  'mentorship':          'from-violet-400 to-violet-600',
+  'team':                'from-blue-400 to-blue-600',
+  'general':             'from-zinc-400 to-zinc-600',
+};
+
 const FILTER_TABS = [
   { type: 'all',         cat: '',       label: 'Todos',        icon: Megaphone,     color: 'text-zinc-700',    bg: 'bg-zinc-100' },
   { type: 'marketplace', cat: 'busco',  label: 'Busco',        icon: ShoppingBag,   color: 'text-indigo-700',    bg: 'bg-indigo-100' },
@@ -73,7 +92,7 @@ const EMPTY_FORM = {
 interface Props {
   userId:       string;
   universityId: string | null;
-  myProfile:    CommunityProfile;
+  myProfile:    CommunityProfile | null;   // null for coordinator/admin (no profile required)
   campusRole:   'student' | 'coordinator' | 'admin';
 }
 
@@ -263,14 +282,25 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
   };
 
   // ── Helpers ───────────────────────────────────────────────────────────────────
+  const getTypeKey = (p: CommunityPost) =>
+    p.category ? `${p.post_type}-${p.category}` : p.post_type;
+
   const getBadge = (p: CommunityPost) =>
-    TYPE_BADGE[p.category ? `${p.post_type}-${p.category}` : p.post_type] ?? TYPE_BADGE['general'];
+    TYPE_BADGE[getTypeKey(p)] ?? TYPE_BADGE['general'];
+
+  const getBorderColor = (p: CommunityPost) =>
+    TYPE_BORDER[getTypeKey(p)] ?? 'border-l-zinc-300';
+
+  const getAvatarGradient = (p: CommunityPost) =>
+    TYPE_AVATAR_BG[getTypeKey(p)] ?? 'from-zinc-400 to-zinc-600';
 
   const initial = (name?: string, email?: string) =>
     (name || email || '?')[0].toUpperCase();
 
   const canModerate = (post: CommunityPost) =>
     post.user_id === userId || campusRole !== 'student';
+
+  const isCoordOrAdmin = campusRole === 'coordinator' || campusRole === 'admin';
 
   // ── Render ────────────────────────────────────────────────────────────────────
   if (loading) return (
@@ -298,10 +328,12 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
           );
         })}
         <div className="flex-1 min-w-[1rem]" />
-        <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 text-xs font-bold bg-indigo-600 text-white px-4 py-1.5 rounded-full hover:bg-indigo-700 transition-colors shrink-0">
-          <Plus className="w-3.5 h-3.5" /> Publicar
-        </button>
+        {!isCoordOrAdmin && (
+          <button onClick={() => setShowCreate(true)}
+            className="flex items-center gap-1.5 text-xs font-bold bg-indigo-600 text-white px-4 py-1.5 rounded-full hover:bg-indigo-700 transition-colors shrink-0">
+            <Plus className="w-3.5 h-3.5" /> Publicar
+          </button>
+        )}
       </div>
 
       {/* Empty state */}
@@ -319,14 +351,19 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
           const badge    = getBadge(post);
           const liked    = myLikes.has(post.id);
           const expanded = expandedId === post.id;
+          const borderCl = getBorderColor(post);
+          const avatarGr = getAvatarGradient(post);
           return (
             <div key={post.id}
-              className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5 cursor-pointer hover:border-indigo-200 hover:shadow-md transition-all"
+              className={cn(
+                'bg-white rounded-2xl border border-zinc-100 border-l-4 shadow-sm p-5 cursor-pointer hover:shadow-md transition-all',
+                borderCl
+              )}
               onClick={() => openDetail(post)}>
 
               <div className="flex items-start gap-3">
-                <div className="w-9 h-9 bg-indigo-100 rounded-full flex items-center justify-center shrink-0">
-                  <span className="text-sm font-black text-indigo-700">
+                <div className={cn('w-9 h-9 bg-gradient-to-br rounded-xl flex items-center justify-center shrink-0', avatarGr)}>
+                  <span className="text-sm font-black text-white">
                     {initial(post.author?.full_name, post.author?.email)}
                   </span>
                 </div>
@@ -449,8 +486,8 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
 
               {/* Modal header */}
               <div className="flex items-start gap-3 p-5 border-b border-zinc-100 shrink-0">
-                <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center shrink-0">
-                  <span className="font-black text-indigo-700 text-sm">
+                <div className={cn('w-10 h-10 bg-gradient-to-br rounded-xl flex items-center justify-center shrink-0', getAvatarGradient(detailPost))}>
+                  <span className="font-black text-white text-sm">
                     {initial(detailPost.author?.full_name, detailPost.author?.email)}
                   </span>
                 </div>
@@ -465,6 +502,14 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
                     <span className="text-xs text-zinc-400">{timeAgo(detailPost.created_at)}</span>
                   </div>
                   <p className="font-black text-zinc-900 text-lg leading-tight mt-1">{detailPost.title}</p>
+                  {/* Coordinator: show author email for direct contact */}
+                  {isCoordOrAdmin && detailPost.author?.email && (
+                    <a href={`mailto:${detailPost.author.email}`}
+                      onClick={e => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 mt-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors">
+                      ✉ {detailPost.author.email}
+                    </a>
+                  )}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   {canModerate(detailPost) && (

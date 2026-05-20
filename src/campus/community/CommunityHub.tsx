@@ -6,7 +6,7 @@
  * - Filtra por university_id vía RLS en Supabase
  */
 import React, { useEffect, useState } from 'react';
-import { Users, Flame, Lightbulb, Edit3, ExternalLink } from 'lucide-react';
+import { Users, Flame, Lightbulb, Edit3, ExternalLink, ShieldCheck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { CommunityProfile } from '../types';
 import { Feed }        from './Feed';
@@ -112,8 +112,15 @@ export const CommunityHub: React.FC<Props> = ({
     </div>
   );
 
-  // ── Profile setup / edit form ────────────────────────────────────────────────
-  if (!commProfile || editMode) return (
+  const isCoordOrAdmin = campusRole === 'coordinator' || campusRole === 'admin';
+
+  // Coordinator / Admin: skip profile setup → go straight to community
+  if (isCoordOrAdmin && !editMode && !commProfile) {
+    // Fall through to community view with null commProfile (handled below)
+  }
+
+  // ── Profile setup / edit form (students only, or when editing) ───────────────
+  if ((!commProfile || editMode) && !isCoordOrAdmin) return (
     <div className="max-w-lg mx-auto">
       {!commProfile && (
         <div className="text-center mb-8">
@@ -236,41 +243,62 @@ export const CommunityHub: React.FC<Props> = ({
         <div>
           <h2 className="text-2xl font-black text-zinc-900">Comunidad Campus</h2>
           <p className="text-zinc-500 text-sm mt-0.5">
-            Red privada · {commProfile.industry}
-            {commProfile.looking_for.length > 0 && ` · Busca: ${commProfile.looking_for.slice(0, 2).join(', ')}`}
+            {isCoordOrAdmin
+              ? `Vista ${campusRole === 'admin' ? 'Administrador' : 'Coordinador'} · Toda la comunidad`
+              : `Red privada · ${commProfile?.industry ?? ''}${(commProfile?.looking_for?.length ?? 0) > 0 ? ` · Busca: ${commProfile!.looking_for.slice(0, 2).join(', ')}` : ''}`
+            }
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {commProfile.linkedin_url && (
+          {commProfile?.linkedin_url && (
             <a href={commProfile.linkedin_url} target="_blank" rel="noopener noreferrer"
               className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors">
               <ExternalLink className="w-4 h-4" />
             </a>
           )}
-          <button onClick={() => setEditMode(true)}
-            className="flex items-center gap-1.5 text-xs font-bold text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 px-3 py-1.5 rounded-lg transition-colors">
-            <Edit3 className="w-3.5 h-3.5" /> Mi perfil
-          </button>
+          {!isCoordOrAdmin && (
+            <button onClick={() => setEditMode(true)}
+              className="flex items-center gap-1.5 text-xs font-bold text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 px-3 py-1.5 rounded-lg transition-colors">
+              <Edit3 className="w-3.5 h-3.5" /> Mi perfil
+            </button>
+          )}
         </div>
       </div>
 
-      {/* My profile chip */}
-      <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 rounded-2xl px-4 py-3 flex items-center gap-3">
-        <div className="w-10 h-10 bg-gradient-to-br from-indigo-400 to-violet-500 rounded-xl flex items-center justify-center shrink-0">
-          <span className="text-sm font-black text-white">
-            {(profile?.full_name || 'U')[0].toUpperCase()}
+      {/* Profile chip (students) or coordinator banner */}
+      {isCoordOrAdmin ? (
+        <div className="bg-gradient-to-r from-slate-800 to-indigo-900 rounded-2xl px-4 py-3 flex items-center gap-3">
+          <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
+            <ShieldCheck className="w-5 h-5 text-indigo-300" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-black text-white text-sm">{profile?.full_name || 'Coordinador'}</p>
+            <p className="text-xs text-slate-400">
+              {campusRole === 'admin' ? 'Administrador' : 'Coordinador'} · Acceso completo a la comunidad
+            </p>
+          </div>
+          <span className="text-[10px] font-black text-indigo-300 bg-indigo-900/50 px-2.5 py-1 rounded-full shrink-0 uppercase tracking-wider">
+            {campusRole}
           </span>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-black text-zinc-900 text-sm">{profile?.full_name || 'Tu perfil'}</p>
-          <p className="text-xs text-zinc-500 truncate">{commProfile.headline}</p>
+      ) : commProfile && (
+        <div className="bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 rounded-2xl px-4 py-3 flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-indigo-400 to-violet-500 rounded-xl flex items-center justify-center shrink-0">
+            <span className="text-sm font-black text-white">
+              {(profile?.full_name || 'U')[0].toUpperCase()}
+            </span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-black text-zinc-900 text-sm">{profile?.full_name || 'Tu perfil'}</p>
+            <p className="text-xs text-zinc-500 truncate">{commProfile.headline}</p>
+          </div>
+          <div className="flex gap-1 shrink-0">
+            {commProfile.looking_for.slice(0, 2).map(t => (
+              <span key={t} className="text-[10px] font-semibold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full hidden sm:block">{t}</span>
+            ))}
+          </div>
         </div>
-        <div className="flex gap-1 shrink-0">
-          {commProfile.looking_for.slice(0, 2).map(t => (
-            <span key={t} className="text-[10px] font-semibold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full hidden sm:block">{t}</span>
-          ))}
-        </div>
-      </div>
+      )}
 
       {/* Sub-tabs */}
       <div className="flex gap-1 bg-zinc-100 rounded-xl p-1">
@@ -300,6 +328,7 @@ export const CommunityHub: React.FC<Props> = ({
           userId={userId}
           universityId={universityId}
           myProfile={commProfile}
+          campusRole={campusRole}
         />
       )}
       {tab === 'startups' && (

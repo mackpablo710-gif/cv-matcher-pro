@@ -32,14 +32,16 @@ interface ProfileWithScore extends CommunityProfile { score: number; }
 interface Props {
   userId:       string;
   universityId: string | null;
-  myProfile:    CommunityProfile;
+  myProfile:    CommunityProfile | null;  // null for coordinator/admin
+  campusRole?:  'student' | 'coordinator' | 'admin';
 }
 
-export const Connections: React.FC<Props> = ({ userId, universityId, myProfile }) => {
+export const Connections: React.FC<Props> = ({ userId, universityId, myProfile, campusRole }) => {
   const [people,     setPeople]     = useState<ProfileWithScore[]>([]);
   const [connected,  setConnected]  = useState<Set<string>>(new Set());
   const [loading,    setLoading]    = useState(true);
   const [connecting, setConnecting] = useState<string | null>(null);
+  const isCoordOrAdmin = campusRole === 'coordinator' || campusRole === 'admin';
 
   useEffect(() => { load(); }, [userId, universityId]);
 
@@ -58,7 +60,7 @@ export const Connections: React.FC<Props> = ({ userId, universityId, myProfile }
     ]);
     const all = (profRes.data ?? []) as CommunityProfile[];
     const scored = all
-      .map(p => ({ ...p, score: matchScore(myProfile, p) }))
+      .map(p => ({ ...p, score: myProfile ? matchScore(myProfile, p) : 0 }))
       .sort((a, b) => b.score - a.score);
     setPeople(scored);
     setConnected(new Set((connRes.data ?? []).map((c: any) => c.to_user_id)));
@@ -172,6 +174,16 @@ export const Connections: React.FC<Props> = ({ userId, universityId, myProfile }
                 </div>
               )}
 
+              {/* Coordinator: show email for direct contact */}
+              {isCoordOrAdmin && p.profile?.email && (
+                <div className="mt-3 px-2 py-1.5 bg-slate-50 rounded-xl">
+                  <a href={`mailto:${p.profile.email}`}
+                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors truncate block">
+                    ✉ {p.profile.email}
+                  </a>
+                </div>
+              )}
+
               {/* Actions */}
               <div className="flex gap-2 mt-4 pt-3 border-t border-zinc-50">
                 {p.linkedin_url && (
@@ -180,23 +192,31 @@ export const Connections: React.FC<Props> = ({ userId, universityId, myProfile }
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 )}
-                <button
-                  onClick={() => !isConnected && connect(p.user_id)}
-                  disabled={isConnected || connecting === p.user_id}
-                  className={cn(
-                    'flex-1 py-2 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5',
-                    isConnected
-                      ? 'bg-emerald-50 text-emerald-600 cursor-default'
-                      : connecting === p.user_id
-                        ? 'bg-indigo-100 text-indigo-400 cursor-wait'
-                        : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                  )}>
-                  {isConnected ? (
-                    <><UserCheck className="w-3.5 h-3.5" /> Conectado</>
-                  ) : (
-                    <><UserPlus className="w-3.5 h-3.5" /> {connecting === p.user_id ? '...' : 'Conectar'}</>
-                  )}
-                </button>
+                {!isCoordOrAdmin && (
+                  <button
+                    onClick={() => !isConnected && connect(p.user_id)}
+                    disabled={isConnected || connecting === p.user_id}
+                    className={cn(
+                      'flex-1 py-2 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5',
+                      isConnected
+                        ? 'bg-emerald-50 text-emerald-600 cursor-default'
+                        : connecting === p.user_id
+                          ? 'bg-indigo-100 text-indigo-400 cursor-wait'
+                          : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                    )}>
+                    {isConnected ? (
+                      <><UserCheck className="w-3.5 h-3.5" /> Conectado</>
+                    ) : (
+                      <><UserPlus className="w-3.5 h-3.5" /> {connecting === p.user_id ? '...' : 'Conectar'}</>
+                    )}
+                  </button>
+                )}
+                {isCoordOrAdmin && (
+                  <a href={`mailto:${p.profile?.email ?? ''}`}
+                    className="flex-1 py-2 text-xs font-bold rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1.5">
+                    ✉ Contactar
+                  </a>
+                )}
               </div>
             </div>
           );
