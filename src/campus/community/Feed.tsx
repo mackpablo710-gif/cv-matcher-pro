@@ -30,7 +30,7 @@ function timeAgo(date: string): string {
 
 const FILTER_TABS = [
   { type: 'all',         cat: '',       label: 'Todos',        icon: Megaphone,     color: 'text-zinc-700',    bg: 'bg-zinc-100' },
-  { type: 'marketplace', cat: 'busco',  label: 'Busco',        icon: ShoppingBag,   color: 'text-teal-700',    bg: 'bg-teal-100' },
+  { type: 'marketplace', cat: 'busco',  label: 'Busco',        icon: ShoppingBag,   color: 'text-indigo-700',    bg: 'bg-indigo-100' },
   { type: 'marketplace', cat: 'ofrezco',label: 'Ofrezco',      icon: Briefcase,     color: 'text-emerald-700', bg: 'bg-emerald-100' },
   { type: 'opportunity', cat: '',       label: 'Oportunidades',icon: Megaphone,     color: 'text-amber-700',   bg: 'bg-amber-100' },
   { type: 'mentorship',  cat: '',       label: 'Mentoría',     icon: BookOpen,      color: 'text-violet-700',  bg: 'bg-violet-100' },
@@ -39,7 +39,7 @@ const FILTER_TABS = [
 ] as const;
 
 const TYPE_BADGE: Record<string, { label: string; color: string; bg: string }> = {
-  'marketplace-busco':   { label: 'BUSCO',       color: 'text-teal-700',    bg: 'bg-teal-100' },
+  'marketplace-busco':   { label: 'BUSCO',       color: 'text-indigo-700',    bg: 'bg-indigo-100' },
   'marketplace-ofrezco': { label: 'OFREZCO',     color: 'text-emerald-700', bg: 'bg-emerald-100' },
   'opportunity':         { label: 'OPORTUNIDAD', color: 'text-amber-700',   bg: 'bg-amber-100' },
   'mentorship':          { label: 'MENTORÍA',    color: 'text-violet-700',  bg: 'bg-violet-100' },
@@ -299,7 +299,7 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
         })}
         <div className="flex-1 min-w-[1rem]" />
         <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 text-xs font-bold bg-teal-600 text-white px-4 py-1.5 rounded-full hover:bg-teal-700 transition-colors shrink-0">
+          className="flex items-center gap-1.5 text-xs font-bold bg-indigo-600 text-white px-4 py-1.5 rounded-full hover:bg-indigo-700 transition-colors shrink-0">
           <Plus className="w-3.5 h-3.5" /> Publicar
         </button>
       </div>
@@ -321,12 +321,12 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
           const expanded = expandedId === post.id;
           return (
             <div key={post.id}
-              className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5 cursor-pointer hover:border-teal-200 hover:shadow-md transition-all"
+              className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5 cursor-pointer hover:border-indigo-200 hover:shadow-md transition-all"
               onClick={() => openDetail(post)}>
 
               <div className="flex items-start gap-3">
-                <div className="w-9 h-9 bg-teal-100 rounded-full flex items-center justify-center shrink-0">
-                  <span className="text-sm font-black text-teal-700">
+                <div className="w-9 h-9 bg-indigo-100 rounded-full flex items-center justify-center shrink-0">
+                  <span className="text-sm font-black text-indigo-700">
                     {initial(post.author?.full_name, post.author?.email)}
                   </span>
                 </div>
@@ -357,7 +357,7 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
                     <div className="flex flex-wrap gap-1 mt-2">
                       <span className="text-[10px] font-black text-zinc-400 uppercase self-center mr-1">Necesita:</span>
                       {post.needs.map(n => (
-                        <span key={n} className="text-[10px] font-semibold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full">{n}</span>
+                        <span key={n} className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{n}</span>
                       ))}
                     </div>
                   )}
@@ -382,12 +382,12 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
                     <button onClick={e => toggleComments(post.id, e)}
                       className={cn(
                         'flex items-center gap-1 text-xs font-semibold transition-colors',
-                        expanded ? 'text-teal-600' : 'text-zinc-400 hover:text-zinc-600'
+                        expanded ? 'text-indigo-600' : 'text-zinc-400 hover:text-zinc-600'
                       )}>
                       <MessageSquare className="w-4 h-4" />
                       {post.comments_count}
                     </button>
-                    <span className="ml-auto text-[10px] font-semibold text-teal-600">Ver más →</span>
+                    <span className="ml-auto text-[10px] font-semibold text-indigo-600">Ver más →</span>
                   </div>
                 </div>
               </div>
@@ -421,11 +421,11 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
                     <input value={commentDraft} onChange={e => setCommentDraft(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendComment(post.id); }}}
                       placeholder="Escribe un comentario..."
-                      className="flex-1 text-sm border border-zinc-200 rounded-xl px-3 py-2 outline-none focus:border-teal-400"
+                      className="flex-1 text-sm border border-zinc-200 rounded-xl px-3 py-2 outline-none focus:border-indigo-400"
                     />
                     <button onClick={() => sendComment(post.id)}
                       disabled={sendingCmt || !commentDraft.trim()}
-                      className="w-9 h-9 flex items-center justify-center bg-teal-600 text-white rounded-xl hover:bg-teal-700 disabled:opacity-50">
+                      className="w-9 h-9 flex items-center justify-center bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50">
                       <Send className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -449,8 +449,8 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
 
               {/* Modal header */}
               <div className="flex items-start gap-3 p-5 border-b border-zinc-100 shrink-0">
-                <div className="w-10 h-10 bg-teal-100 rounded-full flex items-center justify-center shrink-0">
-                  <span className="font-black text-teal-700 text-sm">
+                <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center shrink-0">
+                  <span className="font-black text-indigo-700 text-sm">
                     {initial(detailPost.author?.full_name, detailPost.author?.email)}
                   </span>
                 </div>
@@ -492,7 +492,7 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
                     <p className="text-[10px] font-black text-zinc-400 uppercase tracking-wider mb-2">Necesita</p>
                     <div className="flex flex-wrap gap-1.5">
                       {detailPost.needs.map(n => (
-                        <span key={n} className="text-xs font-semibold text-teal-600 bg-teal-50 px-3 py-1 rounded-full">{n}</span>
+                        <span key={n} className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">{n}</span>
                       ))}
                     </div>
                   </div>
@@ -528,8 +528,8 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
                   )}
                   {detailComments.map(c => (
                     <div key={c.id} className="flex gap-2.5">
-                      <div className="w-7 h-7 bg-teal-50 rounded-full flex items-center justify-center shrink-0">
-                        <span className="text-xs font-black text-teal-700">
+                      <div className="w-7 h-7 bg-indigo-50 rounded-full flex items-center justify-center shrink-0">
+                        <span className="text-xs font-black text-indigo-700">
                           {initial(c.author?.full_name, c.author?.email)}
                         </span>
                       </div>
@@ -554,11 +554,11 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
                   <input value={detailDraft} onChange={e => setDetailDraft(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendDetailComment(); }}}
                     placeholder="Escribe un comentario..."
-                    className="flex-1 text-sm border border-zinc-200 rounded-xl px-3 py-2.5 outline-none focus:border-teal-400"
+                    className="flex-1 text-sm border border-zinc-200 rounded-xl px-3 py-2.5 outline-none focus:border-indigo-400"
                   />
                   <button onClick={sendDetailComment}
                     disabled={sendingDetail || !detailDraft.trim()}
-                    className="w-10 h-10 flex items-center justify-center bg-teal-600 text-white rounded-xl hover:bg-teal-700 disabled:opacity-50 transition-colors">
+                    className="w-10 h-10 flex items-center justify-center bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors">
                     <Send className="w-4 h-4" />
                   </button>
                 </div>
@@ -600,8 +600,8 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
                         className={cn(
                           'text-xs font-semibold px-3 py-1.5 rounded-full border transition-all',
                           active
-                            ? 'bg-teal-600 text-white border-teal-600'
-                            : 'bg-white text-zinc-600 border-zinc-200 hover:border-teal-300'
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : 'bg-white text-zinc-600 border-zinc-200 hover:border-indigo-300'
                         )}>
                         {ct.label}
                       </button>
@@ -622,7 +622,7 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
                     'Título de tu publicación...'
                   }
                   autoFocus
-                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-teal-400"
+                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
                 />
               </div>
 
@@ -632,7 +632,7 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
                 <textarea value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
                   placeholder="Cuéntanos más..."
                   rows={3}
-                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-teal-400 resize-none"
+                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-indigo-400 resize-none"
                 />
               </div>
 
@@ -650,7 +650,7 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
                         className={cn(
                           'text-xs font-semibold px-3 py-1 rounded-full border transition-all',
                           form.needs.includes(n)
-                            ? 'bg-teal-600 text-white border-teal-600'
+                            ? 'bg-indigo-600 text-white border-indigo-600'
                             : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-300'
                         )}>
                         {n}
@@ -678,11 +678,11 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addOtherNeed(); }}}
                         placeholder="Escribe qué necesitas..."
                         autoFocus
-                        className="flex-1 text-xs border border-zinc-200 rounded-xl px-3 py-2 outline-none focus:border-teal-400"
+                        className="flex-1 text-xs border border-zinc-200 rounded-xl px-3 py-2 outline-none focus:border-indigo-400"
                       />
                       <button type="button" onClick={addOtherNeed}
                         disabled={!needsOtherText.trim()}
-                        className="px-3 py-1.5 text-xs font-bold bg-teal-600 text-white rounded-xl hover:bg-teal-700 disabled:opacity-40 transition-colors">
+                        className="px-3 py-1.5 text-xs font-bold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-40 transition-colors">
                         Agregar
                       </button>
                     </div>
@@ -712,7 +712,7 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Tags (separados por coma)</label>
                 <input value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))}
                   placeholder="Ej: fintech, startup, react, marketing"
-                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-teal-400"
+                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
                 />
               </div>
 
@@ -722,7 +722,7 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
                   Cancelar
                 </button>
                 <button onClick={createPost} disabled={saving || !form.title.trim()}
-                  className="flex-1 py-2 text-sm font-bold bg-teal-600 text-white rounded-xl hover:bg-teal-700 disabled:opacity-50 transition-colors">
+                  className="flex-1 py-2 text-sm font-bold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors">
                   {saving ? 'Publicando...' : 'Publicar'}
                 </button>
               </div>

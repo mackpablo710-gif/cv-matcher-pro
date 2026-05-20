@@ -94,7 +94,7 @@ export const CampusApp: React.FC<Props> = ({
   };
 
   if (verifying) return (
-    <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
+    <div className="min-h-screen bg-slate-100 flex items-center justify-center">
       <div className="text-center text-zinc-400">
         <GraduationCap className="w-10 h-10 mx-auto mb-3 animate-pulse" />
         <p className="text-sm font-medium">Verificando acceso...</p>
@@ -120,21 +120,21 @@ export const CampusApp: React.FC<Props> = ({
   const activeTab = tabs.find(t => t.id === tab) ? tab : 'student_dash';
 
   return (
-    <div className="min-h-screen bg-zinc-50 flex flex-col">
+    <div className="min-h-screen bg-slate-100 flex flex-col">
 
       {/* ── Header ─────────────────────────────────────────────────────────────── */}
-      <header className="bg-white border-b border-zinc-100 shadow-sm sticky top-0 z-40">
+      <header className="bg-gradient-to-r from-slate-900 to-indigo-950 border-b border-slate-800 shadow-lg sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
 
           {/* Brand */}
           <div className="flex items-center gap-2.5 shrink-0">
-            <div className="w-7 h-7 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-lg flex items-center justify-center">
+            <div className="w-7 h-7 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-lg flex items-center justify-center">
               <GraduationCap className="w-4 h-4 text-white" />
             </div>
-            <span className="font-black text-zinc-900 text-sm">
-              CVJOB <span className="text-teal-600">Campus</span>
+            <span className="font-black text-white text-sm">
+              CVJOB <span className="text-indigo-300">Campus</span>
             </span>
-            <span className="text-xs font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md">BETA</span>
+            <span className="text-xs font-bold bg-amber-400/20 text-amber-300 px-1.5 py-0.5 rounded-md">BETA</span>
           </div>
 
           {/* Tabs — overflow-x-auto for mobile */}
@@ -144,8 +144,8 @@ export const CampusApp: React.FC<Props> = ({
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all whitespace-nowrap shrink-0',
                   activeTab === t.id
-                    ? 'bg-teal-50 text-teal-700'
-                    : 'text-zinc-500 hover:bg-zinc-50 hover:text-zinc-700'
+                    ? 'bg-white/10 text-white'
+                    : 'text-slate-400 hover:bg-white/10 hover:text-white'
                 )}>
                 <t.icon className="w-4 h-4" />
                 <span className="hidden sm:block">{t.label}</span>
@@ -155,7 +155,7 @@ export const CampusApp: React.FC<Props> = ({
 
           {/* Back to CVJOB */}
           <button onClick={onExit}
-            className="flex items-center gap-1.5 text-xs font-bold text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 px-3 py-1.5 rounded-lg transition-colors shrink-0">
+            className="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-white hover:bg-white/10 px-3 py-1.5 rounded-lg transition-colors shrink-0">
             <ChevronLeft className="w-3.5 h-3.5" />
             <span className="hidden sm:block">Volver a CVJOB</span>
           </button>
@@ -163,7 +163,7 @@ export const CampusApp: React.FC<Props> = ({
       </header>
 
       {/* ── Main content ────────────────────────────────────────────────────────── */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-8">
 
         {activeTab === 'student_dash' && (
           <StudentDashboard

@@ -121,7 +121,7 @@ export const Connections: React.FC<Props> = ({ userId, universityId, myProfile }
 
               {/* Top row: avatar + match */}
               <div className="flex items-start justify-between mb-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-teal-400 to-emerald-500 rounded-2xl flex items-center justify-center shadow-sm">
+                <div className="w-12 h-12 bg-gradient-to-br from-indigo-400 to-violet-500 rounded-2xl flex items-center justify-center shadow-sm">
                   <span className="text-lg font-black text-white">{name[0].toUpperCase()}</span>
                 </div>
                 {pct > 0 && (
@@ -148,7 +148,7 @@ export const Connections: React.FC<Props> = ({ userId, universityId, myProfile }
                   <p className="text-[10px] font-black text-zinc-400 uppercase tracking-wider mb-1">Busca</p>
                   <div className="flex flex-wrap gap-1">
                     {p.looking_for.slice(0, 3).map(l => (
-                      <span key={l} className="text-[10px] font-semibold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full">{l}</span>
+                      <span key={l} className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{l}</span>
                     ))}
                     {p.looking_for.length > 3 && (
                       <span className="text-[10px] text-zinc-400">+{p.looking_for.length - 3}</span>
@@ -188,8 +188,8 @@ export const Connections: React.FC<Props> = ({ userId, universityId, myProfile }
                     isConnected
                       ? 'bg-emerald-50 text-emerald-600 cursor-default'
                       : connecting === p.user_id
-                        ? 'bg-teal-100 text-teal-400 cursor-wait'
-                        : 'bg-teal-600 text-white hover:bg-teal-700'
+                        ? 'bg-indigo-100 text-indigo-400 cursor-wait'
+                        : 'bg-indigo-600 text-white hover:bg-indigo-700'
                   )}>
                   {isConnected ? (
                     <><UserCheck className="w-3.5 h-3.5" /> Conectado</>

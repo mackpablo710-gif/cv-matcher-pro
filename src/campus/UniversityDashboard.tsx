@@ -308,7 +308,7 @@ export const UniversityDashboard: React.FC = () => {
           <p className="text-zinc-500 text-sm mt-0.5">Gestiona instituciones y alumnos</p>
         </div>
         <button onClick={() => setShowUniForm(true)}
-          className="flex items-center gap-2 bg-teal-600 text-white font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-teal-700 transition-colors shadow-lg shadow-teal-200">
+          className="flex items-center gap-2 bg-indigo-600 text-white font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200">
           <Plus className="w-4 h-4" /> Nueva institución
         </button>
       </div>
@@ -329,12 +329,12 @@ export const UniversityDashboard: React.FC = () => {
                 className={cn(
                   'w-full text-left rounded-xl border transition-all group',
                   selUni === u.id
-                    ? 'bg-teal-50 border-teal-200'
+                    ? 'bg-indigo-50 border-indigo-200'
                     : 'bg-white border-zinc-100 hover:bg-zinc-50'
                 )}>
                 <div className="flex items-center gap-2 px-4 py-3">
                   <button onClick={() => setSelUni(u.id)} className="flex-1 text-left min-w-0">
-                    <p className={cn('font-bold text-sm', selUni === u.id ? 'text-teal-700' : 'text-zinc-700')}>
+                    <p className={cn('font-bold text-sm', selUni === u.id ? 'text-indigo-700' : 'text-zinc-700')}>
                       {u.name}
                     </p>
                     <p className="text-xs opacity-60 mt-0.5 capitalize">
@@ -357,7 +357,7 @@ export const UniversityDashboard: React.FC = () => {
             <div className="lg:col-span-3 space-y-4">
 
               {/* Uni header banner */}
-              <div className="bg-gradient-to-r from-teal-600 to-emerald-600 rounded-2xl p-5 text-white">
+              <div className="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-2xl p-5 text-white">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-xl font-black">{selectedUni.name}</h3>
@@ -489,7 +489,7 @@ export const UniversityDashboard: React.FC = () => {
                   {/* CV stats */}
                   <div className="grid grid-cols-2 gap-3">
                     {[
-                      { label: 'CVs con match inicial', value: cvStats.initial, color: 'text-teal-600', bg: 'bg-teal-50' },
+                      { label: 'CVs con match inicial', value: cvStats.initial, color: 'text-indigo-600', bg: 'bg-indigo-50' },
                       { label: 'CVs adaptados',         value: cvStats.adapted, color: 'text-emerald-600', bg: 'bg-emerald-50' },
                     ].map(s => (
                       <div key={s.label} className={cn('rounded-xl p-4 border border-zinc-100 shadow-sm', s.bg)}>
@@ -531,7 +531,7 @@ export const UniversityDashboard: React.FC = () => {
                       <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={onFileChange} />
                       {/* Manual add */}
                       <button onClick={() => setShowStudentForm(true)}
-                        className="flex items-center gap-1.5 text-xs font-bold text-teal-600 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-lg transition-colors">
+                        className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
                         <Plus className="w-3.5 h-3.5" /> Agregar
                       </button>
                     </div>
@@ -540,8 +540,8 @@ export const UniversityDashboard: React.FC = () => {
                   <div className="divide-y divide-zinc-50">
                     {studentList.map(u => (
                       <div key={u.id} className="flex items-center gap-3 px-4 py-3">
-                        <div className="w-8 h-8 bg-teal-100 rounded-full flex items-center justify-center shrink-0">
-                          <span className="text-xs font-black text-teal-700">
+                        <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center shrink-0">
+                          <span className="text-xs font-black text-indigo-700">
                             {(u.profile?.full_name || u.profile?.email || '?')[0].toUpperCase()}
                           </span>
                         </div>
@@ -653,24 +653,24 @@ export const UniversityDashboard: React.FC = () => {
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Nombre *</label>
                 <input value={uniForm.name} onChange={e => setUniForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="Universidad de Chile / MBA Adolfo Ibáñez..." autoFocus
-                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-teal-400" />
+                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Créditos mensuales</label>
                   <input type="number" value={uniForm.credits_per_month} onChange={e => setUniForm(f => ({ ...f, credits_per_month: e.target.value }))}
-                    className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-teal-400" />
+                    className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
                 </div>
                 <div>
                   <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Máx alumnos</label>
                   <input type="number" value={uniForm.max_users} onChange={e => setUniForm(f => ({ ...f, max_users: e.target.value }))}
-                    className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-teal-400" />
+                    className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
                 </div>
               </div>
               <div>
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Plan</label>
                 <select value={uniForm.plan} onChange={e => setUniForm(f => ({ ...f, plan: e.target.value }))}
-                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-teal-400 bg-white">
+                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400 bg-white">
                   <option value="starter">Starter</option>
                   <option value="pro">Pro</option>
                   <option value="enterprise">Enterprise</option>
@@ -682,7 +682,7 @@ export const UniversityDashboard: React.FC = () => {
               <div className="flex gap-2 pt-1">
                 <button onClick={() => setShowUniForm(false)} className="px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-100 rounded-xl">Cancelar</button>
                 <button onClick={saveUni} disabled={saving || !uniForm.name.trim()}
-                  className="flex-1 px-4 py-2 text-sm font-bold bg-teal-600 text-white rounded-xl hover:bg-teal-700 disabled:opacity-50">
+                  className="flex-1 px-4 py-2 text-sm font-bold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50">
                   {saving ? 'Guardando...' : 'Crear institución'}
                 </button>
               </div>
@@ -702,29 +702,29 @@ export const UniversityDashboard: React.FC = () => {
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Nombre completo</label>
                 <input value={studentName} onChange={e => setStudentName(e.target.value)} autoFocus
                   placeholder="Juan Pérez"
-                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-teal-400" />
+                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
               </div>
               <div>
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Email del alumno *</label>
                 <input value={studentEmail} onChange={e => setStudentEmail(e.target.value)}
                   placeholder="alumno@universidad.cl"
-                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-teal-400" />
+                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
               </div>
               <div>
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Programa / Master</label>
                 <input value={studentCareer} onChange={e => setStudentCareer(e.target.value)} placeholder="MBA, Ing. Comercial..."
-                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-teal-400" />
+                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
               </div>
               <div>
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Cohorte / Año</label>
                 <input value={studentCohort} onChange={e => setStudentCohort(e.target.value)} placeholder="MBA-2025"
-                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-teal-400" />
+                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
               </div>
               {studentError && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{studentError}</p>}
               <div className="flex gap-2 pt-1">
                 <button onClick={() => { setShowStudentForm(false); setStudentError(''); }} className="px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-100 rounded-xl">Cancelar</button>
                 <button onClick={addStudent} disabled={addingStudent || !studentEmail.trim()}
-                  className="flex-1 px-4 py-2 text-sm font-bold bg-teal-600 text-white rounded-xl hover:bg-teal-700 disabled:opacity-50">
+                  className="flex-1 px-4 py-2 text-sm font-bold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50">
                   {addingStudent ? 'Buscando...' : 'Agregar'}
                 </button>
               </div>
@@ -792,7 +792,7 @@ export const UniversityDashboard: React.FC = () => {
                 <div className="space-y-3 mb-5">
                   <div className="grid grid-cols-3 gap-3">
                     {[
-                      { label: 'Cuentas creadas', value: importResult.created, color: 'text-teal-600', bg: 'bg-teal-50' },
+                      { label: 'Cuentas creadas', value: importResult.created, color: 'text-indigo-600', bg: 'bg-indigo-50' },
                       { label: 'Matriculados',    value: importResult.enrolled, color: 'text-emerald-600', bg: 'bg-emerald-50' },
                       { label: 'Ya existían',     value: importResult.skipped, color: 'text-zinc-500', bg: 'bg-zinc-50' },
                     ].map(s => (

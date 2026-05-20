@@ -25,7 +25,7 @@ const STAGES = [
   { id: 'all',                 label: 'Todas',              color: 'text-zinc-700',    bg: 'bg-zinc-100' },
   { id: 'idea',                label: '💡 Idea',            color: 'text-zinc-600',    bg: 'bg-zinc-100' },
   { id: 'mvp',                 label: '🔧 MVP',             color: 'text-blue-700',    bg: 'bg-blue-100' },
-  { id: 'buscando_equipo',     label: '👥 Buscando equipo', color: 'text-teal-700',  bg: 'bg-teal-100' },
+  { id: 'buscando_equipo',     label: '👥 Buscando equipo', color: 'text-indigo-700',  bg: 'bg-indigo-100' },
   { id: 'buscando_inversion',  label: '💰 Buscando inversión', color: 'text-amber-700', bg: 'bg-amber-100' },
   { id: 'desarrollo',          label: '🚀 En desarrollo',   color: 'text-emerald-700', bg: 'bg-emerald-100' },
 ];
@@ -145,7 +145,7 @@ export const Startups: React.FC<Props> = ({ userId, universityId, campusRole }) 
           </p>
         </div>
         <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 text-xs font-bold bg-teal-600 text-white px-4 py-2 rounded-xl hover:bg-teal-700 transition-colors">
+          className="flex items-center gap-1.5 text-xs font-bold bg-indigo-600 text-white px-4 py-2 rounded-xl hover:bg-indigo-700 transition-colors">
           <Plus className="w-3.5 h-3.5" /> Publicar idea
         </button>
       </div>
@@ -212,7 +212,7 @@ export const Startups: React.FC<Props> = ({ userId, universityId, campusRole }) 
                 <div className="flex flex-wrap gap-1 mt-3">
                   <span className="text-[10px] font-black text-zinc-400 uppercase self-center mr-1">Necesita:</span>
                   {s.needs.map(n => (
-                    <span key={n} className="text-[10px] font-semibold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full">{n}</span>
+                    <span key={n} className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{n}</span>
                   ))}
                 </div>
               )}
@@ -229,8 +229,8 @@ export const Startups: React.FC<Props> = ({ userId, universityId, campusRole }) 
               {/* Footer */}
               <div className="flex items-center gap-3 mt-4 pt-3 border-t border-zinc-50">
                 <div className="flex items-center gap-1.5 flex-1">
-                  <div className="w-5 h-5 bg-teal-100 rounded-full flex items-center justify-center">
-                    <span className="text-[10px] font-black text-teal-700">{name[0].toUpperCase()}</span>
+                  <div className="w-5 h-5 bg-indigo-100 rounded-full flex items-center justify-center">
+                    <span className="text-[10px] font-black text-indigo-700">{name[0].toUpperCase()}</span>
                   </div>
                   <span className="text-xs font-semibold text-zinc-500 truncate">{name.split(' ')[0]}</span>
                 </div>
@@ -277,7 +277,7 @@ export const Startups: React.FC<Props> = ({ userId, universityId, campusRole }) 
                 <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                   placeholder="Ej: TutuPay · App de pagos entre equipos de trabajo"
                   autoFocus
-                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-teal-400"
+                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
                 />
               </div>
 
@@ -287,7 +287,7 @@ export const Startups: React.FC<Props> = ({ userId, universityId, campusRole }) 
                 <textarea value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
                   placeholder="¿Qué problema resuelves? ¿Cómo lo resuelves?"
                   rows={3}
-                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-teal-400 resize-none"
+                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-indigo-400 resize-none"
                 />
               </div>
 
@@ -323,7 +323,7 @@ export const Startups: React.FC<Props> = ({ userId, universityId, campusRole }) 
                       className={cn(
                         'text-xs font-semibold px-3 py-1 rounded-full border transition-all',
                         form.needs.includes(n)
-                          ? 'bg-teal-600 text-white border-teal-600'
+                          ? 'bg-indigo-600 text-white border-indigo-600'
                           : 'bg-white text-zinc-600 border-zinc-200 hover:border-zinc-300'
                       )}>
                       {n}
@@ -337,7 +337,7 @@ export const Startups: React.FC<Props> = ({ userId, universityId, campusRole }) 
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Tags (separados por coma)</label>
                 <input value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))}
                   placeholder="Ej: fintech, b2b, mobile, saas, retail"
-                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-teal-400"
+                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
                 />
               </div>
 
@@ -347,7 +347,7 @@ export const Startups: React.FC<Props> = ({ userId, universityId, campusRole }) 
                   Cancelar
                 </button>
                 <button onClick={createStartup} disabled={saving || !form.title.trim()}
-                  className="flex-1 py-2 text-sm font-bold bg-teal-600 text-white rounded-xl hover:bg-teal-700 disabled:opacity-50 transition-colors">
+                  className="flex-1 py-2 text-sm font-bold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors">
                   {saving ? 'Publicando...' : 'Publicar idea'}
                 </button>
               </div>
