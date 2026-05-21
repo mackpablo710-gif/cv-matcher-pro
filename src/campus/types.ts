@@ -130,12 +130,15 @@ export interface CampusEvent {
 
 // ─── Kanban ───────────────────────────────────────────────────────────────────
 
-export const KANBAN_COLUMNS: { id: ApplicationStatus; label: string; color: string; bg: string }[] = [
-  { id: 'applied',         label: 'Postulado',        color: 'text-blue-600',   bg: 'bg-blue-50' },
-  { id: 'viewed',          label: 'Visto',            color: 'text-violet-600', bg: 'bg-violet-50' },
-  { id: 'interview',       label: 'Entrevista',       color: 'text-amber-600',  bg: 'bg-amber-50' },
-  { id: 'final_interview', label: 'Entrevista Final', color: 'text-orange-600', bg: 'bg-orange-50' },
-  { id: 'offer',           label: 'Oferta',           color: 'text-indigo-600', bg: 'bg-indigo-50' },
-  { id: 'hired',           label: 'Contratado',       color: 'text-emerald-600',bg: 'bg-emerald-50' },
-  { id: 'rejected',        label: 'Rechazado',        color: 'text-red-600',    bg: 'bg-red-50' },
+export const KANBAN_COLUMNS: {
+  id: ApplicationStatus; label: string;
+  color: string; bg: string; cardBorder: string; dot: string;
+}[] = [
+  { id: 'applied',         label: 'Postulado',        color: 'text-blue-700',    bg: 'bg-blue-50',    cardBorder: 'border-l-blue-400',    dot: 'bg-blue-400' },
+  { id: 'viewed',          label: 'Visto',            color: 'text-violet-700',  bg: 'bg-violet-50',  cardBorder: 'border-l-violet-400',  dot: 'bg-violet-400' },
+  { id: 'interview',       label: 'Entrevista',       color: 'text-amber-700',   bg: 'bg-amber-50',   cardBorder: 'border-l-amber-400',   dot: 'bg-amber-400' },
+  { id: 'final_interview', label: 'Entrevista Final', color: 'text-orange-700',  bg: 'bg-orange-50',  cardBorder: 'border-l-orange-400',  dot: 'bg-orange-400' },
+  { id: 'offer',           label: 'Oferta',           color: 'text-indigo-700',  bg: 'bg-indigo-50',  cardBorder: 'border-l-indigo-400',  dot: 'bg-indigo-400' },
+  { id: 'hired',           label: 'Contratado',       color: 'text-emerald-700', bg: 'bg-emerald-50', cardBorder: 'border-l-emerald-400', dot: 'bg-emerald-400' },
+  { id: 'rejected',        label: 'Rechazado',        color: 'text-red-700',     bg: 'bg-red-50',     cardBorder: 'border-l-red-400',     dot: 'bg-red-400' },
 ];

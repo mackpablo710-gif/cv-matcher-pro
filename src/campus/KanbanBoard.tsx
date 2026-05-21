@@ -130,8 +130,10 @@ export const KanbanBoard: React.FC<Props> = ({ userId }) => {
           return (
             <div key={col.id}
               className={cn(
-                'flex flex-col rounded-2xl border-2 transition-colors shrink-0 w-60 sm:w-72',
-                isOver ? 'border-indigo-400 bg-indigo-50' : 'border-transparent bg-zinc-100'
+                'flex flex-col rounded-2xl border-2 transition-all shrink-0 w-60 sm:w-72',
+                isOver
+                  ? 'border-indigo-400 scale-[1.01] shadow-lg'
+                  : `border-transparent ${col.bg}`
               )}
               style={{ minHeight: 500 }}
               onDragOver={e => onDragOver(e, col.id)}
@@ -139,18 +141,21 @@ export const KanbanBoard: React.FC<Props> = ({ userId }) => {
               onDragLeave={() => setOverCol(null)}
             >
               {/* Column header */}
-              <div className="flex items-center justify-between px-3 py-2.5">
+              <div className="flex items-center justify-between px-3 py-3 border-b border-white/60">
                 <div className="flex items-center gap-2">
-                  <span className={cn('w-2 h-2 rounded-full', col.bg.replace('bg-', 'bg-').replace('50', '500'))} />
+                  <span className={cn('w-2.5 h-2.5 rounded-full', col.dot)} />
                   <span className={cn('text-sm font-black', col.color)}>{col.label}</span>
                 </div>
-                <span className="text-xs font-bold text-zinc-400 bg-white rounded-full w-5 h-5 flex items-center justify-center">
+                <span className={cn(
+                  'text-xs font-black rounded-full w-6 h-6 flex items-center justify-center',
+                  col.color, 'bg-white/70'
+                )}>
                   {items.length}
                 </span>
               </div>
 
               {/* Cards */}
-              <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-2">
+              <div className="flex-1 overflow-y-auto px-2 pt-2 pb-2 space-y-2">
                 {items.map(app => (
                   <div key={app.id}
                     draggable
@@ -158,16 +163,17 @@ export const KanbanBoard: React.FC<Props> = ({ userId }) => {
                     onDragEnd={onDragEnd}
                     onClick={() => openEdit(app)}
                     className={cn(
-                      'bg-white rounded-xl p-3 shadow-sm border border-zinc-100 cursor-grab active:cursor-grabbing',
-                      'hover:shadow-md transition-shadow',
-                      dragId === app.id ? 'opacity-40' : ''
+                      'bg-white rounded-xl p-3 shadow-sm border-l-4 border border-white cursor-grab active:cursor-grabbing',
+                      'hover:shadow-md hover:-translate-y-0.5 transition-all',
+                      col.cardBorder,
+                      dragId === app.id ? 'opacity-40 scale-95' : ''
                     )}
                   >
                     <p className="font-bold text-zinc-900 text-sm leading-tight">{app.position}</p>
-                    <p className="text-xs text-zinc-500 mt-0.5 font-medium">{app.company}</p>
+                    <p className={cn('text-xs mt-0.5 font-semibold', col.color)}>{app.company}</p>
                     {app.notes && <p className="text-xs text-zinc-400 mt-1.5 line-clamp-2">{app.notes}</p>}
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="text-[10px] text-zinc-400">
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-zinc-50">
+                      <span className="text-[10px] text-zinc-400 font-medium">
                         {new Date(app.applied_date).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' })}
                       </span>
                       <div className="flex items-center gap-1">
@@ -187,7 +193,10 @@ export const KanbanBoard: React.FC<Props> = ({ userId }) => {
                   </div>
                 ))}
                 {items.length === 0 && (
-                  <div className="text-center py-4 text-zinc-300 text-xs">Arrastra aquí</div>
+                  <div className="text-center py-6 text-zinc-300 text-xs">
+                    <div className={cn('w-8 h-8 rounded-full mx-auto mb-2 opacity-30', col.bg.replace('50','200'))} />
+                    Arrastra aquí
+                  </div>
                 )}
               </div>
             </div>
