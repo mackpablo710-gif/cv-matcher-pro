@@ -272,7 +272,10 @@ export const CampusApp: React.FC<Props> = ({
         )}
 
         {activeTab === 'kanban' && (
-          <KanbanBoard userId={user.id} />
+          /* Dark full-bleed background so pastel columns stand out */
+          <div className="-mx-4 sm:-mx-6 -mt-8 px-4 sm:px-6 pt-8 pb-8 bg-slate-800 rounded-none min-h-[calc(100vh-56px)]">
+            <KanbanBoard userId={user.id} />
+          </div>
         )}
 
         {activeTab === 'community' && (

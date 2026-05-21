@@ -113,11 +113,11 @@ export const KanbanBoard: React.FC<Props> = ({ userId }) => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-black text-zinc-900">Historial de postulaciones</h2>
-          <p className="text-zinc-500 text-sm mt-0.5">Arrastra las tarjetas para actualizar el estado · {apps.length} postulación{apps.length !== 1 ? 'es' : ''}</p>
+          <h2 className="text-2xl font-black text-white">Mis Postulaciones</h2>
+          <p className="text-slate-400 text-sm mt-0.5">Arrastra las tarjetas para actualizar el estado · {apps.length} postulación{apps.length !== 1 ? 'es' : ''}</p>
         </div>
         <button onClick={openAdd}
-          className="flex items-center gap-2 bg-indigo-600 text-white font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200">
+          className="flex items-center gap-2 bg-white text-slate-800 font-black text-sm px-4 py-2.5 rounded-xl hover:bg-indigo-50 transition-colors shadow-lg">
           <Plus className="w-4 h-4" /> Nueva postulación
         </button>
       </div>
