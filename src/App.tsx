@@ -2498,6 +2498,8 @@ export default function App() {
 
   // Derived: can this user see the Campus button / enter Campus?
   const canSeeCampus = isAdmin || campusAccess !== null;
+  // DEBUG — remove after diagnosis
+  if (profile) console.log('[campus] canSeeCampus:', canSeeCampus, '| isAdmin:', isAdmin, '| campusAccess:', campusAccess);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -2619,10 +2621,13 @@ export default function App() {
       // Returns rows from university_users WHERE user_id = auth.uid() AND active = true.
       // Empty result → normal user, no Campus access.
       supabase.rpc('get_my_campus_role').then(({ data: rpcRows, error: rpcErr }) => {
+        console.log('[campus] get_my_campus_role → rows:', rpcRows, '| error:', rpcErr);
         if (!rpcErr && rpcRows && (rpcRows as any[]).length > 0) {
           const row = (rpcRows as any[])[0];
+          console.log('[campus] ACCESS GRANTED → role:', row.role, 'uni:', row.university_id);
           setCampusAccess({ role: row.role, university_id: row.university_id });
         } else {
+          console.log('[campus] NO ACCESS → campusAccess = null');
           setCampusAccess(null);
         }
         setCampusAccessLoaded(true);
