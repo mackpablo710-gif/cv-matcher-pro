@@ -288,7 +288,10 @@ export const CampusApp: React.FC<Props> = ({
         )}
 
         {activeTab === 'university' && canSeeUniversity && (
-          <UniversityDashboard />
+          <UniversityDashboard
+            campusRole={campusRole === 'admin' ? 'admin' : 'coordinator'}
+            scopedUniversityId={isCoordinator ? universityId : null}
+          />
         )}
 
       </main>

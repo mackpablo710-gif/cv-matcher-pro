@@ -49,7 +49,19 @@ function parseExcel(file: File): Promise<ImportRow[]> {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export const UniversityDashboard: React.FC = () => {
+interface Props {
+  /** 'admin' can see all universities; 'coordinator' is locked to scopedUniversityId */
+  campusRole?: 'admin' | 'coordinator' | 'student';
+  /** When campusRole === 'coordinator', restrict to this university only */
+  scopedUniversityId?: string | null;
+}
+
+export const UniversityDashboard: React.FC<Props> = ({
+  campusRole = 'admin',
+  scopedUniversityId = null,
+}) => {
+  const isCoordinator = campusRole === 'coordinator';
+
   const [unis,    setUnis]    = useState<University[]>([]);
   const [users,   setUsers]   = useState<UniversityUser[]>([]);
   const [apps,    setApps]    = useState<any[]>([]);
@@ -153,10 +165,24 @@ export const UniversityDashboard: React.FC = () => {
 
   const loadAll = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('universities').select('*').eq('active', true).order('created_at', { ascending: false });
+
+    let q = supabase.from('universities').select('*').eq('active', true).order('created_at', { ascending: false });
+
+    // Coordinator: only their assigned university
+    if (isCoordinator && scopedUniversityId) {
+      q = q.eq('id', scopedUniversityId);
+    }
+
+    const { data } = await q;
     setUnis(data || []);
-    if (data && data.length > 0 && !selUni) setSelUni(data[0].id);
+
+    // Coordinator is always locked to their university
+    if (isCoordinator && scopedUniversityId) {
+      setSelUni(scopedUniversityId);
+    } else if (data && data.length > 0 && !selUni) {
+      setSelUni(data[0].id);
+    }
+
     setLoading(false);
   };
 
@@ -332,12 +358,17 @@ export const UniversityDashboard: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-black text-zinc-900">Panel Universidad</h2>
-          <p className="text-zinc-500 text-sm mt-0.5">Gestiona instituciones y alumnos</p>
+          <p className="text-zinc-500 text-sm mt-0.5">
+            {isCoordinator ? 'Tu institución asignada' : 'Gestiona instituciones y alumnos'}
+          </p>
         </div>
-        <button onClick={() => setShowUniForm(true)}
-          className="flex items-center gap-2 bg-indigo-600 text-white font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200">
-          <Plus className="w-4 h-4" /> Nueva institución
-        </button>
+        {/* Only super admin can create universities */}
+        {!isCoordinator && (
+          <button onClick={() => setShowUniForm(true)}
+            className="flex items-center gap-2 bg-indigo-600 text-white font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200">
+            <Plus className="w-4 h-4" /> Nueva institución
+          </button>
+        )}
       </div>
 
       {unis.length === 0 ? (
@@ -347,9 +378,11 @@ export const UniversityDashboard: React.FC = () => {
           <p className="text-sm">Agrega la primera universidad</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        /* Coordinator: full width (no sidebar); Admin: 4-col grid with sidebar */
+        <div className={cn('grid grid-cols-1 gap-4', !isCoordinator && 'lg:grid-cols-4')}>
 
-          {/* ── Sidebar: university list ─────────────────────────────────── */}
+          {/* ── Sidebar: university list (admin only) ───────────────────── */}
+          {!isCoordinator && (
           <div className="space-y-2">
             {unis.map(u => (
               <div key={u.id}
@@ -368,7 +401,7 @@ export const UniversityDashboard: React.FC = () => {
                       {u.plan} · {u.credits_per_month ?? u.credits_per_user} créditos/mes
                     </p>
                   </button>
-                  {/* Delete button */}
+                  {/* Delete button — admin only */}
                   <button
                     onClick={() => setDeleteConfirm(u.id)}
                     className="opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-lg hover:bg-red-50 text-zinc-300 hover:text-red-400 transition-all shrink-0">
@@ -378,10 +411,11 @@ export const UniversityDashboard: React.FC = () => {
               </div>
             ))}
           </div>
+          )} {/* end !isCoordinator sidebar */}
 
           {/* ── Main content ─────────────────────────────────────────────── */}
           {selectedUni && (
-            <div className="lg:col-span-3 space-y-4">
+            <div className={cn('space-y-4', !isCoordinator && 'lg:col-span-3')}>
 
               {/* Hidden logo file input */}
               <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={onLogoChange} />
