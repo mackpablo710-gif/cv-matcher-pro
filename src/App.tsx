@@ -2482,8 +2482,22 @@ export default function App() {
 
   const steps = ['Preparación', 'Match Inicial', 'Idioma', 'Adaptación', 'Exportar'];
   const credits = profile?.credits ?? 0;
+
+  // isAdmin = the one super-admin account (mackennapablo@hotmail.com)
+  // It grants full Campus access without needing a university_users row.
   const isAdmin = profile?.is_admin ?? false;
-  const [isCampusUser, setIsCampusUser] = useState(false);
+
+  // campusAccess — set only when user has an active row in university_users.
+  // null means "no campus access" (normal CVJOB user).
+  const [campusAccess, setCampusAccess] = useState<{
+    role: string;
+    university_id: string;
+  } | null>(null);
+  // True once the async campus check has completed (prevents premature redirect).
+  const [campusAccessLoaded, setCampusAccessLoaded] = useState(false);
+
+  // Derived: can this user see the Campus button / enter Campus?
+  const canSeeCampus = isAdmin || campusAccess !== null;
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -2510,12 +2524,23 @@ export default function App() {
         alreadyLoggedInRef.current = true;
       } else {
         alreadyLoggedInRef.current = false;
-        setIsCampusUser(false);
+        setCampusAccess(null);
+        setCampusAccessLoaded(false);
         setProfile(null);
       }
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  // ── Campus route guard ────────────────────────────────────────────────────
+  // Fires once campus access is loaded. If the user somehow ends up in 'campus'
+  // view without having access (e.g. session restore after being de-enrolled),
+  // kick them back to dashboard immediately.
+  useEffect(() => {
+    if (campusAccessLoaded && view === 'campus' && !isAdmin && campusAccess === null) {
+      setView('dashboard');
+    }
+  }, [campusAccessLoaded, view, isAdmin, campusAccess]);
 
   // Handle Mercado Pago return — verify payment and apply credits immediately
   const [paymentToast, setPaymentToast] = useState<'success' | 'pending' | 'failure' | null>(null);
@@ -2589,10 +2614,19 @@ export default function App() {
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
     if (data) {
       setProfile(data);
-      // Check campus membership via SECURITY DEFINER RPC (bypasses RLS — no fallback)
-      // Only true if user has active row in university_users (added by coordinator/admin)
-      supabase.rpc('is_campus_member')
-        .then(({ data, error }) => setIsCampusUser(!error && data === true));
+      // ── Campus access check ──────────────────────────────────────────────
+      // get_my_campus_role() is SECURITY DEFINER — bypasses RLS.
+      // Returns rows from university_users WHERE user_id = auth.uid() AND active = true.
+      // Empty result → normal user, no Campus access.
+      supabase.rpc('get_my_campus_role').then(({ data: rpcRows, error: rpcErr }) => {
+        if (!rpcErr && rpcRows && (rpcRows as any[]).length > 0) {
+          const row = (rpcRows as any[])[0];
+          setCampusAccess({ role: row.role, university_id: row.university_id });
+        } else {
+          setCampusAccess(null);
+        }
+        setCampusAccessLoaded(true);
+      });
     } else {
       // Create profile if trigger didn't fire yet
       const u = (await supabase.auth.getUser()).data.user;
@@ -2790,7 +2824,7 @@ export default function App() {
               <CreditCard className="w-3.5 h-3.5 text-indigo-600" />
               <span className="text-sm font-black text-indigo-700">{isAdmin ? '∞' : credits}</span>
             </div>
-            {(isAdmin || isCampusUser) && (
+            {canSeeCampus && (
               <button onClick={() => setView('campus')}
                 title="CVJOB Campus"
                 className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded-xl transition-colors border border-indigo-100">
@@ -2841,8 +2875,8 @@ export default function App() {
       </AnimatePresence>
 
       <AnimatePresence mode="wait">
-        {view === 'campus' && (isAdmin || isCampusUser) ? (
-          // ── CVJOB Campus — admin + campus users ──────────────────────────────
+        {view === 'campus' && canSeeCampus ? (
+          // ── CVJOB Campus — super admin OR enrolled campus user ────────────────
           <CampusApp
             key="campus"
             profile={profile}
