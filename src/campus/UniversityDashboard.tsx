@@ -103,7 +103,8 @@ export const UniversityDashboard: React.FC = () => {
       const res = await fetch('/api/campus-monthly-credits', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ admin_user_id: adminId }),
+        // Pass university_id so coordinator can only grant credits for their uni
+        body: JSON.stringify({ admin_user_id: adminId, university_id: selUni }),
       });
       const data = await res.json();
       setCreditGrantResult({ processed: data.processed ?? 0, skipped: data.skipped ?? 0 });

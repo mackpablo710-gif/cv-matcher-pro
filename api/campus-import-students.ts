@@ -5,6 +5,10 @@
  * Creates Supabase Auth accounts for new students and sends invitation emails.
  * For existing accounts, just enrolls them in the university.
  *
+ * Authorized callers:
+ *   - Super admin (profiles.is_admin = true) → any university
+ *   - Coordinator (university_users.role = 'coordinator', active = true) → only their university
+ *
  * POST body:
  *   { admin_user_id: string, university_id: string, students: [{name, email, program}] }
  *
@@ -35,10 +39,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
-  // Validate admin
-  const { data: admin } = await supabase
+  // Validate caller: super admin OR coordinator of this specific university
+  const { data: actorProfile } = await supabase
     .from('profiles').select('is_admin').eq('id', admin_user_id).single();
-  if (!admin?.is_admin) return res.status(403).json({ error: 'Not authorized' });
+
+  if (!actorProfile?.is_admin) {
+    // Not super admin — check if coordinator of this university
+    const { data: coordEntry } = await supabase
+      .from('university_users')
+      .select('id')
+      .eq('user_id',       admin_user_id)
+      .eq('university_id', university_id)
+      .eq('role',          'coordinator')
+      .eq('active',        true)
+      .maybeSingle();
+
+    if (!coordEntry) {
+      return res.status(403).json({ error: 'Not authorized for this university' });
+    }
+  }
 
   // Validate university exists
   const { data: uni } = await supabase

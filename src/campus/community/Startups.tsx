@@ -70,13 +70,20 @@ export const Startups: React.FC<Props> = ({ userId, universityId, campusRole }) 
 
   const load = async () => {
     setLoading(true);
-    const [postsRes, likesRes] = await Promise.all([
-      supabase
+    const startupsQuery = (() => {
+      let q = supabase
         .from('community_posts')
         .select('*, author:profiles(full_name, email)')
         .eq('post_type', 'startup')
         .eq('status', 'active')
-        .order('created_at', { ascending: false }),
+        .order('created_at', { ascending: false });
+      // Scope to university — second security layer after RLS
+      if (universityId) q = q.eq('university_id', universityId);
+      return q;
+    })();
+
+    const [postsRes, likesRes] = await Promise.all([
+      startupsQuery,
       supabase
         .from('community_likes')
         .select('post_id')

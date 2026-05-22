@@ -47,12 +47,19 @@ export const Connections: React.FC<Props> = ({ userId, universityId, myProfile, 
 
   const load = async () => {
     setLoading(true);
-    const [profRes, connRes] = await Promise.all([
-      supabase
+    const profilesQuery = (() => {
+      let q = supabase
         .from('campus_community_profiles')
         .select('*, profile:profiles(full_name, email)')
         .eq('is_visible', true)
-        .neq('user_id', userId),
+        .neq('user_id', userId);
+      // Scope to university — second security layer after RLS
+      if (universityId) q = q.eq('university_id', universityId);
+      return q;
+    })();
+
+    const [profRes, connRes] = await Promise.all([
+      profilesQuery,
       supabase
         .from('community_connections')
         .select('to_user_id')

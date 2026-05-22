@@ -2,7 +2,12 @@
  * /api/campus-monthly-credits
  *
  * Grants monthly credits to all active university students.
- * Called by Vercel Cron on day 1 of every month at 08:00 UTC.
+ * Called manually by admin (POST) or Vercel Cron (GET).
+ *
+ * Authorized callers:
+ *   - Vercel Cron (Authorization: Bearer CRON_SECRET) → all universities
+ *   - Super admin (is_admin = true, POST body admin_user_id) → all universities
+ *   - Coordinator (role=coordinator, POST body admin_user_id + university_id) → their university only
  *
  * Idempotency: campus_credit_grants has UNIQUE(user_id, university_id, month, year)
  * — safe to call multiple times, second call is a no-op.
@@ -20,23 +25,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Allow POST (manual trigger by admin) or GET (Vercel Cron)
   if (req.method !== 'POST' && req.method !== 'GET') return res.status(405).end();
 
-  // Vercel Cron sends Authorization header — validate it
-  const authHeader = req.headers['authorization'];
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    // Also allow manual trigger from admin (skip auth check if no secret configured)
-    if (req.method === 'POST') {
-      const { admin_user_id } = req.body ?? {};
-      if (admin_user_id) {
-        const { data: admin } = await supabase
-          .from('profiles').select('is_admin').eq('id', admin_user_id).single();
-        if (!admin?.is_admin) return res.status(403).json({ error: 'Not authorized' });
-      } else {
-        return res.status(401).json({ error: 'Unauthorized' });
+  // ── Auth: Cron, Super Admin, or Coordinator ──────────────────────────────
+  const authHeader   = req.headers['authorization'];
+  const cronSecret   = process.env.CRON_SECRET;
+  const isCronCall   = cronSecret && authHeader === `Bearer ${cronSecret}`;
+  let   scopedUniId: string | null = null; // null = all universities (admin/cron)
+
+  if (!isCronCall) {
+    if (req.method !== 'POST') return res.status(401).json({ error: 'Unauthorized' });
+
+    const { admin_user_id, university_id } = req.body ?? {};
+    if (!admin_user_id) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { data: actorProfile } = await supabase
+      .from('profiles').select('is_admin').eq('id', admin_user_id).single();
+
+    if (!actorProfile?.is_admin) {
+      // Not super admin — must be coordinator of a specific university
+      const { data: coordEntry } = await supabase
+        .from('university_users')
+        .select('university_id')
+        .eq('user_id',  admin_user_id)
+        .eq('role',     'coordinator')
+        .eq('active',   true)
+        .maybeSingle();
+
+      if (!coordEntry) return res.status(403).json({ error: 'Not authorized' });
+
+      // Coordinator can only grant credits for their own university
+      // If university_id provided, validate it matches their assignment
+      if (university_id && university_id !== coordEntry.university_id) {
+        return res.status(403).json({ error: 'Not authorized for this university' });
       }
-    } else {
-      return res.status(401).json({ error: 'Unauthorized' });
+      scopedUniId = coordEntry.university_id;
     }
+    // Super admin: scopedUniId stays null → processes all universities
   }
 
   const now   = new Date();
@@ -45,11 +68,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   console.log(`[campus-credits] Running for ${year}-${month.toString().padStart(2, '0')}`);
 
-  // Get all active universities with their monthly credit amount
-  const { data: universities, error: uniErr } = await supabase
+  // Get active universities — scoped to coordinator's uni if applicable
+  let uniQuery = supabase
     .from('universities')
     .select('id, name, credits_per_month')
     .eq('active', true);
+  if (scopedUniId) uniQuery = uniQuery.eq('id', scopedUniId);
+  const { data: universities, error: uniErr } = await uniQuery;
 
   if (uniErr || !universities?.length) {
     console.log('[campus-credits] No active universities found');
