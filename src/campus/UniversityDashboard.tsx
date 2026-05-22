@@ -54,11 +54,14 @@ interface Props {
   campusRole?: 'admin' | 'coordinator' | 'student';
   /** When campusRole === 'coordinator', restrict to this university only */
   scopedUniversityId?: string | null;
+  /** Called whenever the selected university changes — lets CampusApp update its watermark */
+  onUniversityLogoChange?: (name: string, logo_url: string | null) => void;
 }
 
 export const UniversityDashboard: React.FC<Props> = ({
   campusRole = 'admin',
   scopedUniversityId = null,
+  onUniversityLogoChange,
 }) => {
   const isCoordinator = campusRole === 'coordinator';
 
@@ -144,6 +147,9 @@ export const UniversityDashboard: React.FC<Props> = ({
         const { data: { publicUrl } } = supabase.storage
           .from('university-assets').getPublicUrl(path);
         await supabase.from('universities').update({ logo_url: publicUrl }).eq('id', selUni);
+        // Update watermark immediately
+        const uniName = unis.find(u => u.id === selUni)?.name ?? '';
+        onUniversityLogoChange?.(uniName, publicUrl);
         loadAll();
       }
     } finally {
@@ -179,8 +185,11 @@ export const UniversityDashboard: React.FC<Props> = ({
     // Coordinator is always locked to their university
     if (isCoordinator && scopedUniversityId) {
       setSelUni(scopedUniversityId);
+      const first = data?.find(u => u.id === scopedUniversityId);
+      if (first) onUniversityLogoChange?.(first.name, first.logo_url ?? null);
     } else if (data && data.length > 0 && !selUni) {
       setSelUni(data[0].id);
+      onUniversityLogoChange?.(data[0].name, data[0].logo_url ?? null);
     }
 
     setLoading(false);
@@ -393,7 +402,7 @@ export const UniversityDashboard: React.FC<Props> = ({
                     : 'bg-white border-zinc-100 hover:bg-zinc-50'
                 )}>
                 <div className="flex items-center gap-2 px-4 py-3">
-                  <button onClick={() => setSelUni(u.id)} className="flex-1 text-left min-w-0">
+                  <button onClick={() => { setSelUni(u.id); onUniversityLogoChange?.(u.name, u.logo_url ?? null); }} className="flex-1 text-left min-w-0">
                     <p className={cn('font-bold text-sm', selUni === u.id ? 'text-indigo-700' : 'text-zinc-700')}>
                       {u.name}
                     </p>

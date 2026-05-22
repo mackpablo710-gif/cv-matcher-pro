@@ -64,6 +64,11 @@ export const CampusApp: React.FC<Props> = ({
         if (!data.ok) { onExit(); return; }
         setCampusRole('admin');
         setEnteredUni(true); // admin skips entry screen
+        // Load first active university for header logo + watermark
+        const { data: firstUni } = await supabase
+          .from('universities').select('name, logo_url')
+          .eq('active', true).order('created_at').limit(1).single();
+        if (firstUni) setUniData(firstUni);
       } else {
         let uUser: { role: string; university_id: string } | null = null;
 
@@ -200,10 +205,15 @@ export const CampusApp: React.FC<Props> = ({
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col">
 
-      {/* University logo watermark */}
+      {/* University logo watermark — visible behind all tabs */}
       {uniData?.logo_url && (
         <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-0">
-          <img src={uniData.logo_url} alt="" className="max-w-xs opacity-[0.04] select-none" />
+          <img
+            src={uniData.logo_url}
+            alt=""
+            className="select-none"
+            style={{ width: '380px', maxWidth: '60vw', opacity: 0.07, filter: 'grayscale(30%)' }}
+          />
         </div>
       )}
 
@@ -291,6 +301,7 @@ export const CampusApp: React.FC<Props> = ({
           <UniversityDashboard
             campusRole={campusRole === 'admin' ? 'admin' : 'coordinator'}
             scopedUniversityId={isCoordinator ? universityId : null}
+            onUniversityLogoChange={(name, logo_url) => setUniData({ name, logo_url })}
           />
         )}
 
