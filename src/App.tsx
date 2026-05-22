@@ -2510,6 +2510,8 @@ export default function App() {
         alreadyLoggedInRef.current = true;
       } else {
         alreadyLoggedInRef.current = false;
+        setIsCampusUser(false);
+        setProfile(null);
       }
     });
     return () => subscription.unsubscribe();
@@ -2587,15 +2589,10 @@ export default function App() {
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
     if (data) {
       setProfile(data);
-      // Check campus membership via SECURITY DEFINER function (bypasses RLS)
+      // Check campus membership via SECURITY DEFINER RPC (bypasses RLS — no fallback)
+      // Only true if user has active row in university_users (added by coordinator/admin)
       supabase.rpc('is_campus_member')
-        .then(({ data }) => setIsCampusUser(data === true))
-        .catch(() => {
-          // Fallback: direct query (works if RLS allows it)
-          supabase.from('university_users')
-            .select('id').eq('user_id', userId).eq('active', true).maybeSingle()
-            .then(({ data: cu }) => setIsCampusUser(!!cu));
-        });
+        .then(({ data, error }) => setIsCampusUser(!error && data === true));
     } else {
       // Create profile if trigger didn't fire yet
       const u = (await supabase.auth.getUser()).data.user;
