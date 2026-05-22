@@ -187,10 +187,10 @@ export const UniversityDashboard: React.FC<Props> = ({
   };
 
   const loadUniData = async (uniId: string) => {
+    // Use SECURITY DEFINER RPC to bypass RLS — allows admin to see ALL members
+    // (direct query is blocked by RLS which only returns own row)
     const [uRes, aRes] = await Promise.all([
-      supabase.from('university_users')
-        .select('*, profile:profiles(email, full_name, credits, last_active_at)')
-        .eq('university_id', uniId).eq('active', true),
+      supabase.rpc('get_university_members', { p_university_id: uniId }),
       supabase.from('applications')
         .select('*, profile:profiles(full_name, email)')
         .eq('university_id', uniId).order('created_at', { ascending: false }),
@@ -460,13 +460,15 @@ export const UniversityDashboard: React.FC<Props> = ({
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    {/* Grant monthly credits button */}
-                    <button onClick={grantMonthlyCredits} disabled={grantingCredits}
-                      title="Cargar créditos del mes a todos los alumnos activos"
-                      className="flex items-center gap-1.5 text-xs font-bold bg-white/15 hover:bg-white/25 disabled:opacity-50 px-3 py-1.5 rounded-xl transition-colors">
-                      <Zap className={cn('w-3.5 h-3.5', grantingCredits && 'animate-pulse')} />
-                      {grantingCredits ? 'Cargando...' : 'Cargar créditos del mes'}
-                    </button>
+                    {/* Grant monthly credits — super admin only */}
+                    {!isCoordinator && (
+                      <button onClick={grantMonthlyCredits} disabled={grantingCredits}
+                        title="Cargar créditos del mes a todos los alumnos activos"
+                        className="flex items-center gap-1.5 text-xs font-bold bg-white/15 hover:bg-white/25 disabled:opacity-50 px-3 py-1.5 rounded-xl transition-colors">
+                        <Zap className={cn('w-3.5 h-3.5', grantingCredits && 'animate-pulse')} />
+                        {grantingCredits ? 'Cargando...' : 'Cargar créditos del mes'}
+                      </button>
+                    )}
                     <button onClick={() => loadUniData(selUni!)}
                       className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
                       <RefreshCw className="w-4 h-4" />
