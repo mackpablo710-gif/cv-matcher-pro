@@ -21,9 +21,12 @@ export interface UniversityUser {
   role: 'student' | 'coordinator' | 'admin';
   career?: string;
   cohort?: string;
+  company?: string;
+  job_title?: string;
   credits_used: number;
   active: boolean;
   enrolled_at: string;
+  created_at?: string;
   // Joined from profiles
   profile?: {
     email: string;

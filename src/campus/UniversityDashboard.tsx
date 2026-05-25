@@ -99,12 +99,14 @@ export const UniversityDashboard: React.FC<Props> = ({
 
   // ── Add student (manual) ──────────────────────────────────────────────────
   const [showStudentForm, setShowStudentForm] = useState(false);
-  const [studentName,   setStudentName]   = useState('');
-  const [studentEmail,  setStudentEmail]  = useState('');
-  const [studentCareer, setStudentCareer] = useState('');
-  const [studentCohort, setStudentCohort] = useState('');
-  const [addingStudent, setAddingStudent] = useState(false);
-  const [studentError,  setStudentError]  = useState('');
+  const [studentName,     setStudentName]     = useState('');
+  const [studentEmail,    setStudentEmail]    = useState('');
+  const [studentCareer,   setStudentCareer]   = useState('');
+  const [studentCohort,   setStudentCohort]   = useState('');
+  const [studentCompany,  setStudentCompany]  = useState('');
+  const [studentJobTitle, setStudentJobTitle] = useState('');
+  const [addingStudent,   setAddingStudent]   = useState(false);
+  const [studentError,    setStudentError]    = useState('');
 
   // ── Monthly credits ───────────────────────────────────────────────────────
   const [grantingCredits,  setGrantingCredits]  = useState(false);
@@ -196,15 +198,30 @@ export const UniversityDashboard: React.FC<Props> = ({
   };
 
   const loadUniData = async (uniId: string) => {
-    // Use SECURITY DEFINER RPC to bypass RLS — allows admin to see ALL members
-    // (direct query is blocked by RLS which only returns own row)
-    const [uRes, aRes] = await Promise.all([
-      supabase.rpc('get_university_members', { p_university_id: uniId }),
+    // Try SECURITY DEFINER RPC first (bypasses RLS so admin sees all members).
+    // Falls back to direct query if the function doesn't exist yet in Supabase.
+    const { data: rpcData, error: rpcErr } = await supabase
+      .rpc('get_university_members', { p_university_id: uniId });
+
+    let membersData: any[] = [];
+    if (!rpcErr && rpcData) {
+      membersData = rpcData;
+    } else {
+      // Fallback: direct query (works once RLS policy allows admin to see all rows)
+      const { data: directData } = await supabase
+        .from('university_users')
+        .select('*, profile:profiles(email, full_name, credits, last_active_at)')
+        .eq('university_id', uniId)
+        .eq('active', true);
+      membersData = directData || [];
+    }
+
+    const [aRes] = await Promise.all([
       supabase.from('applications')
         .select('*, profile:profiles(full_name, email)')
         .eq('university_id', uniId).order('created_at', { ascending: false }),
     ]);
-    const allUsers = uRes.data || [];
+    const allUsers = membersData;
     setUsers(allUsers);
     setApps(aRes.data || []);
 
@@ -295,22 +312,42 @@ export const UniversityDashboard: React.FC<Props> = ({
     const { data: prof } = await supabase
       .from('profiles').select('id').eq('email', studentEmail.trim().toLowerCase()).maybeSingle();
     if (!prof) {
-      setStudentError('No existe un usuario con ese email en CVJOB');
+      setStudentError('No existe un usuario con ese email en CVJOB. Debe registrarse primero en cvjob.cl');
       setAddingStudent(false); return;
     }
-    // Update full_name in profile if a name was provided
     if (studentName.trim()) {
       await supabase.from('profiles').update({ full_name: studentName.trim() }).eq('id', prof.id);
     }
-    const { error } = await supabase.from('university_users').insert({
-      university_id: selUni, user_id: prof.id, role: 'student',
-      career: studentCareer || null, cohort: studentCohort || null,
-    });
-    if (error) { setStudentError('Este usuario ya pertenece a la universidad'); setAddingStudent(false); return; }
+    // Check if already enrolled
+    const { data: existing } = await supabase
+      .from('university_users').select('id, active')
+      .eq('user_id', prof.id).eq('university_id', selUni).maybeSingle();
+    if (existing) {
+      if (!existing.active) {
+        await supabase.from('university_users').update({
+          active: true, role: 'student',
+          career: studentCareer || null, cohort: studentCohort || null,
+          company: studentCompany || null, job_title: studentJobTitle || null,
+        }).eq('id', existing.id);
+      } else {
+        setStudentError('Este alumno ya está inscrito en esta universidad');
+        setAddingStudent(false); return;
+      }
+    } else {
+      const { error } = await supabase.from('university_users').insert({
+        university_id: selUni, user_id: prof.id, role: 'student',
+        career:    studentCareer    || null,
+        cohort:    studentCohort    || null,
+        company:   studentCompany   || null,
+        job_title: studentJobTitle  || null,
+      });
+      if (error) { setStudentError('Error al agregar alumno: ' + error.message); setAddingStudent(false); return; }
+    }
     setAddingStudent(false);
     setShowStudentForm(false);
-    setStudentName(''); setStudentEmail(''); setStudentCareer(''); setStudentCohort('');
-    loadUniData(selUni);
+    setStudentName(''); setStudentEmail(''); setStudentCareer('');
+    setStudentCohort(''); setStudentCompany(''); setStudentJobTitle('');
+    loadUniData(selUni!);
   };
 
   // ── Excel import ──────────────────────────────────────────────────────────
@@ -813,38 +850,72 @@ export const UniversityDashboard: React.FC<Props> = ({
       {/* Add student modal (manual) */}
       {showStudentForm && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => { setShowStudentForm(false); setStudentName(''); setStudentEmail(''); setStudentCareer(''); setStudentCohort(''); setStudentError(''); }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
-            <h3 className="font-black text-zinc-900 mb-4">Agregar alumno</h3>
+          onClick={() => { setShowStudentForm(false); setStudentName(''); setStudentEmail(''); setStudentCareer(''); setStudentCohort(''); setStudentCompany(''); setStudentJobTitle(''); setStudentError(''); }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-black text-zinc-900">Agregar alumno</h3>
+              <button onClick={() => setShowStudentForm(false)} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-zinc-100">
+                <X className="w-4 h-4 text-zinc-400" />
+              </button>
+            </div>
             <div className="space-y-3">
-              <div>
-                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Nombre completo</label>
-                <input value={studentName} onChange={e => setStudentName(e.target.value)} autoFocus
-                  placeholder="Juan Pérez"
-                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
+              {/* Datos personales */}
+              <p className="text-[10px] font-black text-zinc-400 uppercase tracking-wider">Datos personales</p>
+              <div className="grid grid-cols-1 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-zinc-500">Nombre completo</label>
+                  <input value={studentName} onChange={e => setStudentName(e.target.value)} autoFocus
+                    placeholder="Juan Pérez"
+                    className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-zinc-500">Email *</label>
+                  <input value={studentEmail} onChange={e => setStudentEmail(e.target.value)}
+                    placeholder="alumno@correo.cl"
+                    className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
+                  <p className="text-[10px] text-zinc-400 mt-0.5">Debe tener cuenta en CVJOB</p>
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Email del alumno *</label>
-                <input value={studentEmail} onChange={e => setStudentEmail(e.target.value)}
-                  placeholder="alumno@universidad.cl"
-                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
+
+              {/* Datos académicos */}
+              <p className="text-[10px] font-black text-zinc-400 uppercase tracking-wider pt-1">Datos académicos</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-zinc-500">Programa / Carrera</label>
+                  <input value={studentCareer} onChange={e => setStudentCareer(e.target.value)} placeholder="MBA, Ing. Comercial..."
+                    className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-zinc-500">Cohorte / Año</label>
+                  <input value={studentCohort} onChange={e => setStudentCohort(e.target.value)} placeholder="MBA-2025"
+                    className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Programa / Master</label>
-                <input value={studentCareer} onChange={e => setStudentCareer(e.target.value)} placeholder="MBA, Ing. Comercial..."
-                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
+
+              {/* Situación laboral */}
+              <p className="text-[10px] font-black text-zinc-400 uppercase tracking-wider pt-1">Situación laboral (opcional)</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-zinc-500">Empresa actual</label>
+                  <input value={studentCompany} onChange={e => setStudentCompany(e.target.value)} placeholder="Empresa S.A."
+                    className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-zinc-500">Cargo actual</label>
+                  <input value={studentJobTitle} onChange={e => setStudentJobTitle(e.target.value)} placeholder="Analista, Gerente..."
+                    className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Cohorte / Año</label>
-                <input value={studentCohort} onChange={e => setStudentCohort(e.target.value)} placeholder="MBA-2025"
-                  className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-indigo-400" />
-              </div>
+
               {studentError && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{studentError}</p>}
-              <div className="flex gap-2 pt-1">
-                <button onClick={() => { setShowStudentForm(false); setStudentError(''); }} className="px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-100 rounded-xl">Cancelar</button>
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => { setShowStudentForm(false); setStudentError(''); }}
+                  className="px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-100 rounded-xl transition-colors">
+                  Cancelar
+                </button>
                 <button onClick={addStudent} disabled={addingStudent || !studentEmail.trim()}
-                  className="flex-1 px-4 py-2 text-sm font-bold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50">
-                  {addingStudent ? 'Buscando...' : 'Agregar'}
+                  className="flex-1 px-4 py-2 text-sm font-bold bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+                  {addingStudent ? 'Agregando...' : 'Agregar alumno'}
                 </button>
               </div>
             </div>
