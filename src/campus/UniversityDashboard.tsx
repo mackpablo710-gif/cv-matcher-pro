@@ -13,31 +13,41 @@ function cn(...c: (string | undefined | false)[]) { return c.filter(Boolean).joi
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-interface ImportRow { name: string; email: string; program: string; }
+interface ImportRow {
+  name:      string;
+  email:     string;
+  program:   string;
+  cohort:    string;
+  company:   string;
+  job_title: string;
+}
 
 function parseExcel(file: File): Promise<ImportRow[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const data  = new Uint8Array(e.target!.result as ArrayBuffer);
-        const wb    = XLSX.read(data, { type: 'array' });
-        const ws    = wb.Sheets[wb.SheetNames[0]];
-        const rows  = XLSX.utils.sheet_to_json<any>(ws, { defval: '' });
-        // Accept headers: Nombre + Apellido (separados) o Name (combinado), Mail/Email, Master/Program
+        const data = new Uint8Array(e.target!.result as ArrayBuffer);
+        const wb   = XLSX.read(data, { type: 'array' });
+        const ws   = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<any>(ws, { defval: '' });
+        const str  = (v: any) => (v || '').toString().trim();
+
         const out: ImportRow[] = rows.map((r: any) => {
-          // Combinar Nombre + Apellido si vienen en columnas separadas
-          const nombre   = (r['Nombre']   || r['nombre']   || '').toString().trim();
-          const apellido = (r['Apellido'] || r['apellido'] || '').toString().trim();
+          const nombre   = str(r['Nombre']   || r['nombre']);
+          const apellido = str(r['Apellido'] || r['apellido']);
           const name = nombre && apellido
             ? `${nombre} ${apellido}`
-            : (nombre || apellido || r['Name'] || r['name'] || '').toString().trim();
+            : str(nombre || apellido || r['Name'] || r['name']);
           return {
             name,
-            email:   (r['Mail'] || r['Email'] || r['mail'] || r['email'] || '').toString().trim().toLowerCase(),
-            program: (r['Master'] || r['Programa'] || r['Program'] || r['master'] || r['Programa/Master'] || '').toString().trim(),
+            email:     str(r['Mail'] || r['Email'] || r['mail'] || r['email']).toLowerCase(),
+            program:   str(r['Master'] || r['Programa'] || r['Program'] || r['master'] || r['Programa/Master'] || r['programa']),
+            cohort:    str(r['Cohorte'] || r['cohorte'] || r['Cohort'] || r['Año'] || r['año']),
+            company:   str(r['Empresa'] || r['empresa'] || r['Empresa_Actual'] || r['empresa_actual']),
+            job_title: str(r['Cargo'] || r['cargo'] || r['Cargo_Actual'] || r['cargo_actual'] || r['Puesto'] || r['puesto']),
           };
-        }).filter((r: ImportRow) => r.email);
+        }).filter((r: ImportRow) => r.email && r.email.includes('@'));
         resolve(out);
       } catch (err) {
         reject(err);
@@ -140,18 +150,25 @@ export const UniversityDashboard: React.FC<Props> = ({
     if (!file || !selUni) return;
     setUploadingLogo(true);
     try {
-      const ext  = file.name.split('.').pop() ?? 'png';
-      const path = `logos/${selUni}.${ext}`;
+      // Always use a fixed path per university (no extension) so upsert truly replaces.
+      // Pass contentType explicitly so Supabase serves it correctly.
+      const path = `logos/${selUni}`;
+
+      // Remove old file first to avoid stale cache in Supabase CDN
+      await supabase.storage.from('university-assets').remove([path]);
+
       const { error } = await supabase.storage
         .from('university-assets')
-        .upload(path, file, { upsert: true, contentType: file.type });
+        .upload(path, file, { upsert: true, contentType: file.type, cacheControl: '0' });
+
       if (!error) {
         const { data: { publicUrl } } = supabase.storage
           .from('university-assets').getPublicUrl(path);
-        await supabase.from('universities').update({ logo_url: publicUrl }).eq('id', selUni);
-        // Update watermark immediately
+        // Add cache-buster so the browser fetches the new image
+        const urlWithBust = `${publicUrl}?v=${Date.now()}`;
+        await supabase.from('universities').update({ logo_url: urlWithBust }).eq('id', selUni);
         const uniName = unis.find(u => u.id === selUni)?.name ?? '';
-        onUniversityLogoChange?.(uniName, publicUrl);
+        onUniversityLogoChange?.(uniName, urlWithBust);
         loadAll();
       }
     } finally {
@@ -467,79 +484,79 @@ export const UniversityDashboard: React.FC<Props> = ({
               <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={onLogoChange} />
 
               {/* Uni header banner */}
-              <div className="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-2xl p-5 text-white">
-                <div className="flex items-start justify-between gap-3">
-                  {/* Left: logo + name */}
-                  <div className="flex items-center gap-4">
-                    {/* Logo slot — click to upload */}
+              <div className="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-2xl p-6 text-white">
+                <div className="flex items-start gap-5">
+
+                  {/* ── Left: info + stats ──────────────────────────── */}
+                  <div className="flex-1 min-w-0">
+                    {/* Name + actions row */}
+                    <div className="flex items-start justify-between gap-3 mb-1">
+                      <h3 className="text-2xl font-black leading-tight">{selectedUni.name}</h3>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {!isCoordinator && (
+                          <button onClick={grantMonthlyCredits} disabled={grantingCredits}
+                            title="Cargar créditos del mes"
+                            className="flex items-center gap-1.5 text-xs font-bold bg-white/15 hover:bg-white/25 disabled:opacity-50 px-3 py-1.5 rounded-xl transition-colors">
+                            <Zap className={cn('w-3.5 h-3.5', grantingCredits && 'animate-pulse')} />
+                            {grantingCredits ? 'Cargando...' : 'Créditos del mes'}
+                          </button>
+                        )}
+                        <button onClick={() => loadUniData(selUni!)}
+                          className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
+                          <RefreshCw className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-white/70 text-sm capitalize">
+                      {selectedUni.plan} plan · {selectedUni.max_users} alumnos máx. · {selectedUni.credits_per_month ?? selectedUni.credits_per_user} créditos/mes
+                    </p>
+
+                    {/* Credit grant toast */}
+                    {creditGrantResult && (
+                      <div className={cn(
+                        'mt-3 rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-2',
+                        creditGrantResult.skipped === -1 ? 'bg-red-500/30 text-red-100' : 'bg-white/15 text-white'
+                      )}>
+                        {creditGrantResult.skipped === -1
+                          ? <><AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Error al cargar créditos.</>
+                          : <><CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                              {creditGrantResult.processed} alumnos recibieron créditos
+                              {creditGrantResult.skipped > 0 ? ` · ${creditGrantResult.skipped} ya los tenían` : ''}
+                            </>
+                        }
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── Right: big logo slot ─────────────────────────── */}
+                  <div className="shrink-0">
                     <button
                       onClick={() => logoRef.current?.click()}
                       disabled={uploadingLogo}
-                      title="Subir logo de la universidad"
-                      className="relative w-16 h-16 rounded-2xl bg-white/10 hover:bg-white/20 border-2 border-white/20 hover:border-white/40 transition-all flex items-center justify-center shrink-0 overflow-hidden group"
+                      title={selectedUni.logo_url ? 'Cambiar logo' : 'Subir logo'}
+                      className="relative w-28 h-28 rounded-2xl bg-white/10 hover:bg-white/20 border-2 border-white/20 hover:border-white/50 transition-all flex items-center justify-center overflow-hidden group shadow-xl"
                     >
-                      {selectedUni.logo_url ? (
+                      {uploadingLogo ? (
+                        <div className="w-7 h-7 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      ) : selectedUni.logo_url ? (
                         <>
-                          <img src={selectedUni.logo_url} alt="logo" className="w-14 h-14 object-contain" />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <ImagePlus className="w-5 h-5 text-white" />
+                          <img src={selectedUni.logo_url} alt="logo" className="w-24 h-24 object-contain p-1" />
+                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+                            <ImagePlus className="w-6 h-6 text-white" />
+                            <span className="text-[10px] font-bold text-white">Cambiar</span>
                           </div>
                         </>
                       ) : (
-                        uploadingLogo
-                          ? <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                          : <ImagePlus className="w-6 h-6 text-white/60 group-hover:text-white transition-colors" />
+                        <div className="flex flex-col items-center gap-1.5">
+                          <ImagePlus className="w-8 h-8 text-white/50 group-hover:text-white transition-colors" />
+                          <span className="text-[10px] font-bold text-white/50 group-hover:text-white transition-colors">Subir logo</span>
+                        </div>
                       )}
-                    </button>
-                    <div>
-                      <h3 className="text-xl font-black">{selectedUni.name}</h3>
-                      <p className="text-white/70 text-sm mt-0.5 capitalize">
-                        {selectedUni.plan} plan · {selectedUni.max_users} alumnos máx.
-                        · {selectedUni.credits_per_month ?? selectedUni.credits_per_user} créditos/mes
-                      </p>
-                      {!selectedUni.logo_url && (
-                        <button onClick={() => logoRef.current?.click()}
-                          className="mt-1 text-[10px] text-white/50 hover:text-white/80 underline transition-colors">
-                          + Subir logo
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {/* Grant monthly credits — super admin only */}
-                    {!isCoordinator && (
-                      <button onClick={grantMonthlyCredits} disabled={grantingCredits}
-                        title="Cargar créditos del mes a todos los alumnos activos"
-                        className="flex items-center gap-1.5 text-xs font-bold bg-white/15 hover:bg-white/25 disabled:opacity-50 px-3 py-1.5 rounded-xl transition-colors">
-                        <Zap className={cn('w-3.5 h-3.5', grantingCredits && 'animate-pulse')} />
-                        {grantingCredits ? 'Cargando...' : 'Cargar créditos del mes'}
-                      </button>
-                    )}
-                    <button onClick={() => loadUniData(selUni!)}
-                      className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 transition-colors">
-                      <RefreshCw className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
-                {/* Credit grant result toast */}
-                {creditGrantResult && (
-                  <div className={cn(
-                    'mt-3 rounded-xl px-3 py-2 text-xs font-semibold flex items-center gap-2',
-                    creditGrantResult.skipped === -1
-                      ? 'bg-red-500/30 text-red-100'
-                      : 'bg-white/15 text-white'
-                  )}>
-                    {creditGrantResult.skipped === -1 ? (
-                      <><AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Error al cargar créditos. Intenta de nuevo.</>
-                    ) : (
-                      <><CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                        {creditGrantResult.processed} alumnos recibieron créditos
-                        {creditGrantResult.skipped > 0 ? ` · ${creditGrantResult.skipped} ya los tenían este mes` : ''}
-                      </>
-                    )}
-                  </div>
-                )}
-                <div className="grid grid-cols-4 gap-3 mt-4">
+
+                <div className="grid grid-cols-4 gap-3 mt-5">
                   {[
                     { label: 'Alumnos',       value: studentList.length },
                     { label: 'Postulaciones', value: apps.length },
@@ -944,23 +961,30 @@ export const UniversityDashboard: React.FC<Props> = ({
             {!importResult ? (
               <>
                 <p className="text-sm text-zinc-500 mb-3">
-                  Se encontraron <strong>{importRows.length} alumnos</strong> en el archivo.
-                  Se enviará un email de invitación a los que no tengan cuenta en CVJOB.
+                  <strong>{importRows.length} alumnos</strong> detectados. Se enviará invitación por email a los que no tengan cuenta.
                 </p>
                 {/* Preview table */}
                 <div className="border border-zinc-100 rounded-xl overflow-hidden mb-4">
-                  <div className="grid grid-cols-3 bg-zinc-50 px-3 py-2 text-xs font-black text-zinc-400 uppercase tracking-wider">
-                    <span>Nombre</span><span>Email</span><span>Programa</span>
+                  <div className="grid bg-zinc-50 px-3 py-2 text-xs font-black text-zinc-400 uppercase tracking-wider"
+                    style={{ gridTemplateColumns: '1.5fr 1.5fr 1fr 1fr 1fr 1fr' }}>
+                    <span>Nombre</span><span>Email</span><span>Programa</span><span>Cohorte</span><span>Empresa</span><span>Cargo</span>
                   </div>
-                  <div className="divide-y divide-zinc-50 max-h-48 overflow-y-auto">
+                  <div className="divide-y divide-zinc-50 max-h-52 overflow-y-auto">
                     {importRows.map((r, i) => (
-                      <div key={i} className="grid grid-cols-3 px-3 py-2 text-xs text-zinc-700">
-                        <span className="truncate">{r.name || '—'}</span>
+                      <div key={i} className="grid px-3 py-2 text-xs text-zinc-700 gap-1"
+                        style={{ gridTemplateColumns: '1.5fr 1.5fr 1fr 1fr 1fr 1fr' }}>
+                        <span className="truncate font-medium">{r.name || '—'}</span>
                         <span className="truncate text-zinc-500">{r.email}</span>
                         <span className="truncate text-zinc-400">{r.program || '—'}</span>
+                        <span className="truncate text-zinc-400">{r.cohort || '—'}</span>
+                        <span className="truncate text-zinc-400">{r.company || '—'}</span>
+                        <span className="truncate text-zinc-400">{r.job_title || '—'}</span>
                       </div>
                     ))}
                   </div>
+                </div>
+                <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 text-xs text-blue-700 mb-3">
+                  📋 Columnas soportadas: <strong>nombre, email, programa, cohorte, empresa_actual, cargo_actual</strong>
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => { setShowImport(false); setImportResult(null); }}

@@ -10,7 +10,7 @@
  *   - Coordinator (university_users.role = 'coordinator', active = true) → only their university
  *
  * POST body:
- *   { admin_user_id: string, university_id: string, students: [{name, email, program}] }
+ *   { admin_user_id, university_id, students: [{name, email, program, cohort, company, job_title}] }
  *
  * Returns:
  *   { ok: true, created: number, enrolled: number, skipped: number, errors: string[] }
@@ -25,9 +25,12 @@ const supabase = createClient(
 );
 
 interface StudentRow {
-  name: string;
-  email: string;
-  program: string;
+  name:      string;
+  email:     string;
+  program:   string;
+  cohort?:   string;
+  company?:  string;
+  job_title?: string;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -44,7 +47,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     .from('profiles').select('is_admin').eq('id', admin_user_id).single();
 
   if (!actorProfile?.is_admin) {
-    // Not super admin — check if coordinator of this university
     const { data: coordEntry } = await supabase
       .from('university_users')
       .select('id')
@@ -61,7 +63,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Validate university exists
   const { data: uni } = await supabase
-    .from('universities').select('id, name, credits_per_month').eq('id', university_id).eq('active', true).single();
+    .from('universities')
+    .select('id, name, credits_per_month')
+    .eq('id', university_id)
+    .eq('active', true)
+    .single();
   if (!uni) return res.status(404).json({ error: 'University not found' });
 
   let created = 0;
@@ -70,9 +76,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const errors: string[] = [];
 
   for (const row of students as StudentRow[]) {
-    const email = row.email?.trim().toLowerCase();
-    const name  = row.name?.trim();
-    const prog  = row.program?.trim() || null;
+    const email     = row.email?.trim().toLowerCase();
+    const name      = row.name?.trim();
+    const prog      = row.program?.trim()   || null;
+    const cohort    = row.cohort?.trim()    || null;
+    const company   = row.company?.trim()   || null;
+    const job_title = row.job_title?.trim() || null;
 
     if (!email || !email.includes('@')) {
       errors.push(`invalid_email:${email}`);
@@ -88,16 +97,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (existingProfile) {
         userId = existingProfile.id;
-
-        // Update name if not set
+        // Update name only if not set
         if (name) {
           await supabase.from('profiles')
             .update({ full_name: name })
             .eq('id', userId)
-            .is('full_name', null); // only update if null
+            .is('full_name', null);
         }
       } else {
-        // Create new Auth user via invite — Supabase sends welcome email automatically
+        // New user — send invitation email (Supabase handles it)
         const { data: invited, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email, {
           data: { full_name: name || email.split('@')[0] },
           redirectTo: 'https://cvjob.cl',
@@ -110,13 +118,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         userId = invited.user.id;
 
-        // Create profile
         await supabase.from('profiles').upsert({
-          id: userId,
+          id:        userId,
           email,
           full_name: name || null,
-          credits: uni.credits_per_month || 5,
-          is_admin: false,
+          credits:   uni.credits_per_month || 5,
+          is_admin:  false,
         }, { onConflict: 'id' });
 
         created++;
@@ -132,10 +139,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (existing) {
         if (!existing.active) {
-          // Re-activate
-          await supabase.from('university_users')
-            .update({ active: true, career: prog || undefined })
-            .eq('id', existing.id);
+          // Re-activate + update extra fields
+          await supabase.from('university_users').update({
+            active: true,
+            career:    prog,
+            cohort:    cohort,
+            company:   company,
+            job_title: job_title,
+          }).eq('id', existing.id);
           enrolled++;
         } else {
           skipped++;
@@ -143,22 +154,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         continue;
       }
 
-      // Enroll in university
+      // Enroll in university with all fields
       const { error: enrollErr } = await supabase.from('university_users').insert({
         university_id,
-        user_id: userId,
-        role: 'student',
-        career: prog,
-        active: true,
+        user_id:   userId,
+        role:      'student',
+        active:    true,
+        career:    prog,
+        cohort:    cohort,
+        company:   company,
+        job_title: job_title,
       });
 
       if (enrollErr) {
-        errors.push(`enroll_failed:${email}`);
+        errors.push(`enroll_failed:${email}:${enrollErr.message}`);
         continue;
       }
 
       enrolled++;
-      console.log(`[campus-import] enrolled ${email} → ${uni.name} (${prog || 'no program'})`);
+      console.log(`[campus-import] enrolled ${email} → ${uni.name}`);
 
     } catch (e: any) {
       errors.push(`error:${email}:${e?.message}`);
