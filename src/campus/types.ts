@@ -26,7 +26,6 @@ export interface UniversityUser {
   credits_used: number;
   active: boolean;
   enrolled_at: string;
-  created_at?: string;
   // Joined from profiles
   profile?: {
     email: string;

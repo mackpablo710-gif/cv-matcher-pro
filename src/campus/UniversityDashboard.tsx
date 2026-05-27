@@ -215,35 +215,78 @@ export const UniversityDashboard: React.FC<Props> = ({
   };
 
   const loadUniData = async (uniId: string) => {
-    // Try SECURITY DEFINER RPC first (bypasses RLS so admin sees all members).
-    // Falls back to direct query if the function doesn't exist yet in Supabase.
+    // ── Step 1: load members ──────────────────────────────────────────────────
+    // Try SECURITY DEFINER RPC first — bypasses RLS completely, returns flat rows.
     const { data: rpcData, error: rpcErr } = await supabase
       .rpc('get_university_members', { p_university_id: uniId });
 
-    let membersData: any[] = [];
-    if (!rpcErr && rpcData) {
-      membersData = rpcData;
+    let membersData: UniversityUser[] = [];
+
+    if (!rpcErr && Array.isArray(rpcData)) {
+      // RPC returns flat columns — normalize into nested { profile } shape
+      membersData = (rpcData as any[]).map((row: any) => ({
+        id:            row.id,
+        university_id: row.university_id,
+        user_id:       row.user_id,
+        role:          row.role,
+        career:        row.career    ?? null,
+        cohort:        row.cohort    ?? null,
+        company:       row.company   ?? null,
+        job_title:     row.job_title ?? null,
+        credits_used:  row.credits_used ?? 0,
+        active:        row.active,
+        enrolled_at:   row.enrolled_at,
+        profile: {
+          email:          row.email          ?? '',
+          full_name:      row.full_name       ?? '',
+          credits:        row.credits         ?? 0,
+          last_active_at: row.last_active_at  ?? null,
+        },
+      }));
     } else {
-      // Fallback: direct query (works once RLS policy allows admin to see all rows)
-      const { data: directData } = await supabase
+      // Fallback: two-step query — avoids FK-join issues and RLS row-visibility problems.
+      // First get university_users rows, then fetch profiles by user_id list.
+      const { data: uuRows } = await supabase
         .from('university_users')
-        .select('*, profile:profiles(email, full_name, credits, last_active_at)')
-        .eq('university_id', uniId)
-        .eq('active', true);
-      membersData = directData || [];
+        .select('id, university_id, user_id, role, career, cohort, company, job_title, credits_used, active, enrolled_at')
+        .eq('university_id', uniId);
+
+      if (uuRows && uuRows.length > 0) {
+        const userIds = [...new Set(uuRows.map((r: any) => r.user_id as string))];
+        const { data: profileRows } = await supabase
+          .from('profiles')
+          .select('id, email, full_name, credits, last_active_at')
+          .in('id', userIds);
+
+        const profileMap = new Map((profileRows || []).map((p: any) => [p.id, p]));
+
+        membersData = uuRows.map((uu: any) => {
+          const p = profileMap.get(uu.user_id);
+          return {
+            ...uu,
+            profile: p ? {
+              email:          p.email          ?? '',
+              full_name:      p.full_name       ?? '',
+              credits:        p.credits         ?? 0,
+              last_active_at: p.last_active_at  ?? null,
+            } : undefined,
+          } as UniversityUser;
+        });
+      }
     }
 
-    const [aRes] = await Promise.all([
-      supabase.from('applications')
-        .select('*, profile:profiles(full_name, email)')
-        .eq('university_id', uniId).order('created_at', { ascending: false }),
-    ]);
-    const allUsers = membersData;
-    setUsers(allUsers);
-    setApps(aRes.data || []);
+    // ── Step 2: applications ──────────────────────────────────────────────────
+    const { data: appsData } = await supabase
+      .from('applications')
+      .select('id, user_id, company, position, status, applied_date, profile:profiles(full_name, email)')
+      .eq('university_id', uniId)
+      .order('created_at', { ascending: false });
 
-    // CV stats for students
-    const studentIds = allUsers.filter(u => u.role === 'student').map(u => u.user_id);
+    setUsers(membersData);
+    setApps(appsData || []);
+
+    // ── Step 3: CV stats for students ─────────────────────────────────────────
+    const studentIds = membersData.filter(u => u.role === 'student').map(u => u.user_id);
     if (studentIds.length > 0) {
       const [initRes, adaptRes] = await Promise.all([
         supabase.from('adaptations').select('id', { count: 'exact', head: true })
@@ -410,8 +453,8 @@ export const UniversityDashboard: React.FC<Props> = ({
   const selectedUni     = unis.find(u => u.id === selUni);
   const interviewCount  = apps.filter(a => ['interview','final_interview'].includes(a.status)).length;
   const hiredCount      = apps.filter(a => a.status === 'hired').length;
-  const studentList     = users.filter(u => u.role === 'student');
-  const coordList       = users.filter(u => u.role === 'coordinator' || u.role === 'admin');
+  const studentList     = users.filter(u => u.role === 'student'    && u.active !== false);
+  const coordList       = users.filter(u => ['coordinator', 'career_admin'].includes(u.role) && u.active !== false);
 
   if (loading) return <div className="flex items-center justify-center h-64 text-zinc-400">Cargando...</div>;
 
@@ -571,8 +614,8 @@ export const UniversityDashboard: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* ── Coordinator section ───────────────────────────────────── */}
-              <div className="bg-gradient-to-br from-violet-50 to-indigo-50 rounded-2xl border border-violet-100 shadow-sm overflow-hidden">
+              {/* ── Coordinator section (admin only) ─────────────────────── */}
+              {!isCoordinator && <div className="bg-gradient-to-br from-violet-50 to-indigo-50 rounded-2xl border border-violet-100 shadow-sm overflow-hidden">
                 <div className="p-4 border-b border-violet-100 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-violet-600" />
@@ -641,7 +684,7 @@ export const UniversityDashboard: React.FC<Props> = ({
                     ))}
                   </div>
                 )}
-              </div>
+              </div>}
 
               {/* ── Sub-tabs ─────────────────────────────────────────────── */}
               <div className="flex gap-1 bg-zinc-100 rounded-xl p-1">
