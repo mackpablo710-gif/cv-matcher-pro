@@ -123,11 +123,14 @@ const Input = ({ label, type = 'text', value, onChange, placeholder, icon: Icon,
   </div>
 );
 
-const Badge = ({ children, color = 'zinc' }: { children: React.ReactNode; color?: 'zinc' | 'indigo' | 'green' | 'orange' | 'red' }) => {
+const Badge = ({ children, color = 'zinc' }: { children: React.ReactNode; color?: 'zinc' | 'indigo' | 'blue' | 'green' | 'orange' | 'red' }) => {
   const colors = {
-    zinc: 'bg-zinc-100 text-zinc-600', indigo: 'bg-indigo-50 text-indigo-700',
-    green: 'bg-emerald-50 text-emerald-700', orange: 'bg-orange-50 text-orange-700',
-    red: 'bg-red-50 text-red-600',
+    zinc:   'bg-zinc-100 text-zinc-600',
+    indigo: 'bg-indigo-50 text-indigo-700',
+    blue:   'bg-blue-50 text-blue-700',
+    green:  'bg-emerald-50 text-emerald-700',
+    orange: 'bg-orange-50 text-orange-700',
+    red:    'bg-red-50 text-red-600',
   };
   return <span className={cn('text-xs font-bold uppercase tracking-widest px-2.5 py-1 rounded-full', colors[color])}>{children}</span>;
 };
@@ -1653,6 +1656,40 @@ const MatchAnalysisPanel = ({ initialMatch, analysis }: { initialMatch: any; ana
           </p>
           <div className="flex flex-wrap gap-1.5">
             {analysis.keywords_usadas.map((k: string, i: number) => <Badge key={i} color="green">{k}</Badge>)}
+          </div>
+        </div>
+      )}
+
+      {/* Industry change warning */}
+      {analysis?.cambio_industria && (
+        <div className="rounded-xl bg-violet-50 border border-violet-200 px-3 py-2.5 flex items-start gap-2">
+          <span className="text-base leading-none mt-0.5">🔀</span>
+          <div>
+            <p className="text-xs font-black text-violet-800">Cambio de industria detectado</p>
+            <p className="text-[11px] text-violet-600 mt-0.5 leading-relaxed">
+              CV: <strong>{analysis.industria_cv}</strong> → JD: <strong>{analysis.industria_jd}</strong>.
+              El CV fue adaptado destacando habilidades transferibles sin reclamar expertise en la industria destino.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Keywords the candidate COULD add honestly */}
+      {analysis?.keywords_sugeribles?.length > 0 && (
+        <div>
+          <p className="text-xs font-black uppercase tracking-widest text-indigo-600 mb-2 flex items-center gap-1">
+            <span className="text-sm">💡</span> Puedes agregar al CV (si son verídicas)
+          </p>
+          <p className="text-[10px] text-zinc-400 mb-2 leading-relaxed">
+            Estas keywords se deducen de tu experiencia pero no aparecen en tu CV. Agrégalas solo si aplican a tu caso.
+          </p>
+          <div className="space-y-1.5">
+            {analysis.keywords_sugeribles.map((s: { keyword: string; razon: string }, i: number) => (
+              <div key={i} className="flex items-start gap-2 bg-indigo-50 rounded-lg px-3 py-2">
+                <Badge color="blue">{s.keyword}</Badge>
+                <p className="text-[11px] text-indigo-600 leading-tight mt-0.5">{s.razon}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
