@@ -210,22 +210,22 @@ export const CampusApp: React.FC<Props> = ({
         <>
           {/* Left watermark */}
           <div className="fixed left-0 top-0 bottom-0 flex items-center pointer-events-none z-0"
-            style={{ width: '220px' }}>
+            style={{ width: '260px' }}>
             <img
               src={uniData.logo_url}
               alt=""
               className="select-none"
-              style={{ width: '180px', opacity: 0.07, filter: 'grayscale(30%)', transform: 'translateX(-20px)' }}
+              style={{ width: '220px', opacity: 0.13, filter: 'grayscale(20%)', transform: 'translateX(20px)' }}
             />
           </div>
           {/* Right watermark */}
           <div className="fixed right-0 top-0 bottom-0 flex items-center pointer-events-none z-0"
-            style={{ width: '220px' }}>
+            style={{ width: '260px' }}>
             <img
               src={uniData.logo_url}
               alt=""
               className="select-none"
-              style={{ width: '180px', opacity: 0.07, filter: 'grayscale(30%)', transform: 'translateX(20px)' }}
+              style={{ width: '220px', opacity: 0.13, filter: 'grayscale(20%)', transform: 'translateX(-20px)' }}
             />
           </div>
         </>
