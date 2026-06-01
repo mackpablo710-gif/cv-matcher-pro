@@ -205,16 +205,30 @@ export const CampusApp: React.FC<Props> = ({
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col">
 
-      {/* University logo watermark — visible behind all tabs */}
+      {/* University logo watermark — left + right sides, always visible */}
       {uniData?.logo_url && (
-        <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-0">
-          <img
-            src={uniData.logo_url}
-            alt=""
-            className="select-none"
-            style={{ width: '380px', maxWidth: '60vw', opacity: 0.07, filter: 'grayscale(30%)' }}
-          />
-        </div>
+        <>
+          {/* Left watermark */}
+          <div className="fixed left-0 top-0 bottom-0 flex items-center pointer-events-none z-0"
+            style={{ width: '220px' }}>
+            <img
+              src={uniData.logo_url}
+              alt=""
+              className="select-none"
+              style={{ width: '180px', opacity: 0.07, filter: 'grayscale(30%)', transform: 'translateX(-20px)' }}
+            />
+          </div>
+          {/* Right watermark */}
+          <div className="fixed right-0 top-0 bottom-0 flex items-center pointer-events-none z-0"
+            style={{ width: '220px' }}>
+            <img
+              src={uniData.logo_url}
+              alt=""
+              className="select-none"
+              style={{ width: '180px', opacity: 0.07, filter: 'grayscale(30%)', transform: 'translateX(20px)' }}
+            />
+          </div>
+        </>
       )}
 
       {/* ── Header ─────────────────────────────────────────────────────────────── */}
