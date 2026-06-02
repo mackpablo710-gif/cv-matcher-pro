@@ -85,22 +85,29 @@ export const CommunityHub: React.FC<Props> = ({
     if (!form.headline.trim() || !form.industry) return;
     setSaving(true);
     const payload = {
-      user_id:      userId,
+      user_id:       userId,
       university_id: universityId,
-      headline:     form.headline.trim(),
-      industry:     form.industry,
-      looking_for:  form.looking_for,
-      offering:     form.offering,
-      linkedin_url: form.linkedin_url.trim() || null,
-      is_visible:   true,
+      headline:      form.headline.trim(),
+      industry:      form.industry,
+      looking_for:   form.looking_for,
+      offering:      form.offering,
+      linkedin_url:  form.linkedin_url.trim() || null,
+      is_visible:    true,
     };
-    const { data } = await supabase
+
+    const { error } = await supabase
       .from('campus_community_profiles')
-      .upsert(payload, { onConflict: 'user_id' })
-      .select()
-      .single();
+      .upsert(payload, { onConflict: 'user_id' });
+
+    if (error) {
+      console.error('[CommunityHub] saveProfile error:', error.message);
+      setSaving(false);
+      return;
+    }
+
+    // Reload from DB — never rely on upsert's returned data (RLS can block it)
+    await loadProfile();
     setSaving(false);
-    setCommProfile(data);
     setEditMode(false);
   };
 
