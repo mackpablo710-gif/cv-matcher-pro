@@ -54,6 +54,7 @@ export const CommunityHub: React.FC<Props> = ({
   const [editMode,    setEditMode]    = useState(false);
   const [form,        setForm]        = useState({ ...EMPTY_SETUP });
   const [saving,      setSaving]      = useState(false);
+  const [saveError,   setSaveError]   = useState('');
 
   useEffect(() => { loadProfile(); }, [userId]);
 
@@ -84,6 +85,8 @@ export const CommunityHub: React.FC<Props> = ({
   const saveProfile = async () => {
     if (!form.headline.trim() || !form.industry) return;
     setSaving(true);
+    setSaveError('');
+
     const payload = {
       user_id:       userId,
       university_id: universityId,
@@ -100,13 +103,35 @@ export const CommunityHub: React.FC<Props> = ({
       .upsert(payload, { onConflict: 'user_id' });
 
     if (error) {
-      console.error('[CommunityHub] saveProfile error:', error.message);
+      setSaveError('Error al guardar: ' + error.message);
       setSaving(false);
       return;
     }
 
-    // Reload from DB — never rely on upsert's returned data (RLS can block it)
-    await loadProfile();
+    // Try to read back from DB
+    const { data: freshData } = await supabase
+      .from('campus_community_profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    // If RLS blocks the SELECT (freshData null), build the profile from form
+    // data so the user can enter the community anyway — the upsert DID succeed.
+    const resolved: CommunityProfile = freshData ?? {
+      id:            '',
+      user_id:       userId,
+      university_id: universityId,
+      headline:      payload.headline,
+      industry:      payload.industry,
+      skills:        [],
+      looking_for:   payload.looking_for,
+      offering:      payload.offering,
+      linkedin_url:  payload.linkedin_url,
+      is_visible:    true,
+      created_at:    new Date().toISOString(),
+    };
+
+    setCommProfile(resolved);
     setSaving(false);
     setEditMode(false);
   };
@@ -225,6 +250,9 @@ export const CommunityHub: React.FC<Props> = ({
           />
         </div>
 
+        {saveError && (
+          <p className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2">{saveError}</p>
+        )}
         <button
           onClick={saveProfile}
           disabled={saving || !form.headline.trim() || !form.industry}
