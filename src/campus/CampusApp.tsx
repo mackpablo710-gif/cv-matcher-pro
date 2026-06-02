@@ -66,7 +66,7 @@ export const CampusApp: React.FC<Props> = ({
         setEnteredUni(true); // admin skips entry screen
         // Load first active university for header logo + watermark
         const { data: firstUni } = await supabase
-          .from('universities').select('name, logo_url, campus_bg_url')
+          .from('universities').select('*')
           .eq('active', true).order('created_at').limit(1).single();
         if (firstUni) setUniData(firstUni);
       } else {
@@ -94,7 +94,7 @@ export const CampusApp: React.FC<Props> = ({
         if (uUser.university_id) {
           const { data: uni } = await supabase
             .from('universities')
-            .select('name, logo_url, campus_bg_url')
+            .select('*')
             .eq('id', uUser.university_id)
             .single();
           if (uni) setUniData(uni);
