@@ -215,7 +215,7 @@ export const CampusApp: React.FC<Props> = ({
               src={uniData.logo_url}
               alt=""
               className="select-none"
-              style={{ width: '220px', opacity: 0.13, filter: 'grayscale(20%)', transform: 'translateX(20px)' }}
+              style={{ width: '220px', opacity: 0.45, filter: 'grayscale(20%)', transform: 'translateX(50px)' }}
             />
           </div>
           {/* Right watermark */}
@@ -225,7 +225,7 @@ export const CampusApp: React.FC<Props> = ({
               src={uniData.logo_url}
               alt=""
               className="select-none"
-              style={{ width: '220px', opacity: 0.13, filter: 'grayscale(20%)', transform: 'translateX(-20px)' }}
+              style={{ width: '220px', opacity: 0.45, filter: 'grayscale(20%)', transform: 'translateX(-50px)' }}
             />
           </div>
         </>
