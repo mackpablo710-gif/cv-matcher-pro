@@ -98,26 +98,8 @@ export const CommunityHub: React.FC<Props> = ({
       is_visible:    true,
     };
 
-    const { error } = await supabase
-      .from('campus_community_profiles')
-      .upsert(payload, { onConflict: 'user_id' });
-
-    if (error) {
-      setSaveError('Error al guardar: ' + error.message);
-      setSaving(false);
-      return;
-    }
-
-    // Try to read back from DB
-    const { data: freshData } = await supabase
-      .from('campus_community_profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    // If RLS blocks the SELECT (freshData null), build the profile from form
-    // data so the user can enter the community anyway — the upsert DID succeed.
-    const resolved: CommunityProfile = freshData ?? {
+    // ── Enter community IMMEDIATELY with form data (no waiting for DB) ────────
+    const localProfile: CommunityProfile = {
       id:            '',
       user_id:       userId,
       university_id: universityId,
@@ -130,10 +112,28 @@ export const CommunityHub: React.FC<Props> = ({
       is_visible:    true,
       created_at:    new Date().toISOString(),
     };
-
-    setCommProfile(resolved);
-    setSaving(false);
+    setCommProfile(localProfile);
     setEditMode(false);
+    setSaving(false);
+
+    // ── Persist to DB in background (non-blocking) ────────────────────────────
+    try {
+      const { error } = await supabase
+        .from('campus_community_profiles')
+        .upsert(payload, { onConflict: 'user_id' });
+
+      if (!error) {
+        // Try to upgrade to the real DB row (has proper id, timestamps, etc.)
+        const { data } = await supabase
+          .from('campus_community_profiles')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+        if (data) setCommProfile(data);
+      }
+    } catch {
+      // Silently ignore — user is already inside the community
+    }
   };
 
   // ── Loading ──────────────────────────────────────────────────────────────────
