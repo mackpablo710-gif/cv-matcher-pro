@@ -64,8 +64,8 @@ interface Props {
   campusRole?: 'admin' | 'coordinator' | 'student';
   /** When campusRole === 'coordinator', restrict to this university only */
   scopedUniversityId?: string | null;
-  /** Called whenever the selected university changes — lets CampusApp update its watermark */
-  onUniversityLogoChange?: (name: string, logo_url: string | null) => void;
+  /** Called whenever the selected university changes — lets CampusApp update its watermark/bg */
+  onUniversityLogoChange?: (name: string, logo_url: string | null, campus_bg_url?: string | null) => void;
 }
 
 export const UniversityDashboard: React.FC<Props> = ({
@@ -150,29 +150,51 @@ export const UniversityDashboard: React.FC<Props> = ({
     if (!file || !selUni) return;
     setUploadingLogo(true);
     try {
-      // Always use a fixed path per university (no extension) so upsert truly replaces.
-      // Pass contentType explicitly so Supabase serves it correctly.
       const path = `logos/${selUni}`;
-
-      // Remove old file first to avoid stale cache in Supabase CDN
       await supabase.storage.from('university-assets').remove([path]);
-
       const { error } = await supabase.storage
         .from('university-assets')
         .upload(path, file, { upsert: true, contentType: file.type, cacheControl: '0' });
-
       if (!error) {
         const { data: { publicUrl } } = supabase.storage
           .from('university-assets').getPublicUrl(path);
-        // Add cache-buster so the browser fetches the new image
         const urlWithBust = `${publicUrl}?v=${Date.now()}`;
         await supabase.from('universities').update({ logo_url: urlWithBust }).eq('id', selUni);
-        const uniName = unis.find(u => u.id === selUni)?.name ?? '';
-        onUniversityLogoChange?.(uniName, urlWithBust);
+        const uni = unis.find(u => u.id === selUni);
+        onUniversityLogoChange?.(uni?.name ?? '', urlWithBust, (uni as any)?.campus_bg_url ?? null);
         loadAll();
       }
     } finally {
       setUploadingLogo(false);
+      e.target.value = '';
+    }
+  };
+
+  // ── Campus background photo upload ───────────────────────────────────────
+  const bgRef = useRef<HTMLInputElement>(null);
+  const [uploadingBg, setUploadingBg] = useState(false);
+
+  const onBgChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selUni) return;
+    setUploadingBg(true);
+    try {
+      const path = `backgrounds/${selUni}`;
+      await supabase.storage.from('university-assets').remove([path]);
+      const { error } = await supabase.storage
+        .from('university-assets')
+        .upload(path, file, { upsert: true, contentType: file.type, cacheControl: '0' });
+      if (!error) {
+        const { data: { publicUrl } } = supabase.storage
+          .from('university-assets').getPublicUrl(path);
+        const urlWithBust = `${publicUrl}?v=${Date.now()}`;
+        await supabase.from('universities').update({ campus_bg_url: urlWithBust }).eq('id', selUni);
+        const uni = unis.find(u => u.id === selUni);
+        onUniversityLogoChange?.(uni?.name ?? '', uni?.logo_url ?? null, urlWithBust);
+        loadAll();
+      }
+    } finally {
+      setUploadingBg(false);
       e.target.value = '';
     }
   };
@@ -523,8 +545,9 @@ export const UniversityDashboard: React.FC<Props> = ({
           {selectedUni && (
             <div className={cn('space-y-4', !isCoordinator && 'lg:col-span-3')}>
 
-              {/* Hidden logo file input */}
+              {/* Hidden file inputs */}
               <input ref={logoRef} type="file" accept="image/*" className="hidden" onChange={onLogoChange} />
+              <input ref={bgRef}   type="file" accept="image/*" className="hidden" onChange={onBgChange} />
 
               {/* Uni header banner */}
               <div className="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-2xl p-6 text-white">
@@ -571,8 +594,9 @@ export const UniversityDashboard: React.FC<Props> = ({
                     )}
                   </div>
 
-                  {/* ── Right: big logo slot ─────────────────────────── */}
-                  <div className="shrink-0">
+                  {/* ── Right: logo + campus bg buttons ──────────────── */}
+                  <div className="shrink-0 flex flex-col gap-2 items-center">
+                    {/* Logo */}
                     <button
                       onClick={() => logoRef.current?.click()}
                       disabled={uploadingLogo}
@@ -586,7 +610,7 @@ export const UniversityDashboard: React.FC<Props> = ({
                           <img src={selectedUni.logo_url} alt="logo" className="w-24 h-24 object-contain p-1" />
                           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
                             <ImagePlus className="w-6 h-6 text-white" />
-                            <span className="text-[10px] font-bold text-white">Cambiar</span>
+                            <span className="text-[10px] font-bold text-white">Cambiar logo</span>
                           </div>
                         </>
                       ) : (
@@ -595,6 +619,18 @@ export const UniversityDashboard: React.FC<Props> = ({
                           <span className="text-[10px] font-bold text-white/50 group-hover:text-white transition-colors">Subir logo</span>
                         </div>
                       )}
+                    </button>
+                    {/* Campus background photo */}
+                    <button
+                      onClick={() => bgRef.current?.click()}
+                      disabled={uploadingBg}
+                      title="Foto de fondo de la pantalla de entrada"
+                      className="flex items-center gap-1.5 text-[10px] font-bold text-white/60 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-xl transition-all border border-white/10 hover:border-white/30"
+                    >
+                      {uploadingBg
+                        ? <><div className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" /> Subiendo...</>
+                        : <><ImagePlus className="w-3 h-3" /> {(selectedUni as any).campus_bg_url ? 'Cambiar foto campus' : 'Foto campus'}</>
+                      }
                     </button>
                   </div>
                 </div>

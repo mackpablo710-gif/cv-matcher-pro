@@ -25,7 +25,7 @@ function cn(...c: (string | undefined | false)[]) { return c.filter(Boolean).joi
 type CampusTab  = 'student_dash' | 'kanban' | 'community' | 'university';
 type CampusRole = 'student' | 'coordinator' | 'admin';
 
-interface UniData { name: string; logo_url?: string | null; }
+interface UniData { name: string; logo_url?: string | null; campus_bg_url?: string | null; }
 
 interface Props {
   profile: any;
@@ -66,7 +66,7 @@ export const CampusApp: React.FC<Props> = ({
         setEnteredUni(true); // admin skips entry screen
         // Load first active university for header logo + watermark
         const { data: firstUni } = await supabase
-          .from('universities').select('name, logo_url')
+          .from('universities').select('name, logo_url, campus_bg_url')
           .eq('active', true).order('created_at').limit(1).single();
         if (firstUni) setUniData(firstUni);
       } else {
@@ -90,11 +90,11 @@ export const CampusApp: React.FC<Props> = ({
         setCampusRole(role);
         setUniversityId(uUser.university_id ?? null);
 
-        // Load university name + logo
+        // Load university name + logo + background
         if (uUser.university_id) {
           const { data: uni } = await supabase
             .from('universities')
-            .select('name, logo_url')
+            .select('name, logo_url, campus_bg_url')
             .eq('id', uUser.university_id)
             .single();
           if (uni) setUniData(uni);
@@ -125,11 +125,28 @@ export const CampusApp: React.FC<Props> = ({
 
   // ── University entry screen (students only) ──────────────────────────────────
   if (!enteredUni) {
+    const hasBg = !!uniData?.campus_bg_url;
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex items-center justify-center p-6">
-        {/* Logo watermark */}
-        {uniData?.logo_url && (
-          <div className="fixed inset-0 flex items-center justify-center pointer-events-none">
+      <div className="min-h-screen relative flex items-center justify-center p-6 overflow-hidden">
+
+        {/* Background: campus photo or fallback gradient */}
+        {hasBg ? (
+          <>
+            <img
+              src={uniData!.campus_bg_url!}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
+            />
+            {/* Dark overlay so text is always readable */}
+            <div className="absolute inset-0 bg-black/55 backdrop-blur-[1px]" />
+          </>
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900" />
+        )}
+
+        {/* Logo watermark (only when no bg photo) */}
+        {!hasBg && uniData?.logo_url && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <img src={uniData.logo_url} alt="" className="max-w-sm opacity-[0.05] select-none" />
           </div>
         )}
@@ -138,7 +155,7 @@ export const CampusApp: React.FC<Props> = ({
           {/* University logo */}
           <div className="mb-6 flex justify-center">
             {uniData?.logo_url ? (
-              <div className="w-24 h-24 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center shadow-2xl overflow-hidden">
+              <div className="w-24 h-24 rounded-2xl bg-white/15 backdrop-blur-md border border-white/30 flex items-center justify-center shadow-2xl overflow-hidden">
                 <img src={uniData.logo_url} alt={uniData.name} className="w-20 h-20 object-contain" />
               </div>
             ) : (
@@ -149,10 +166,10 @@ export const CampusApp: React.FC<Props> = ({
           </div>
 
           {/* University name */}
-          <h1 className="text-3xl font-black text-white leading-tight">
+          <h1 className="text-3xl font-black text-white leading-tight drop-shadow-lg">
             {uniData?.name ?? 'Campus CVJOB'}
           </h1>
-          <p className="text-slate-400 text-sm mt-2">
+          <p className="text-white/70 text-sm mt-2 drop-shadow">
             Bienvenido/a, <span className="text-white font-semibold">{profile?.full_name || user?.email?.split('@')[0]}</span>
           </p>
 
@@ -168,14 +185,14 @@ export const CampusApp: React.FC<Props> = ({
           {/* Enter button */}
           <button
             onClick={() => setEnteredUni(true)}
-            className="mt-8 w-full flex items-center justify-center gap-2 bg-white text-slate-900 font-black text-sm py-4 rounded-2xl hover:bg-indigo-50 transition-colors shadow-2xl shadow-indigo-900/40"
+            className="mt-8 w-full flex items-center justify-center gap-2 bg-white text-slate-900 font-black text-sm py-4 rounded-2xl hover:bg-indigo-50 transition-colors shadow-2xl"
           >
             Entrar al Campus
             <ArrowRight className="w-4 h-4" />
           </button>
 
           <button onClick={onExit}
-            className="mt-3 w-full text-xs text-slate-500 hover:text-slate-300 py-2 transition-colors">
+            className="mt-3 w-full text-xs text-white/40 hover:text-white/70 py-2 transition-colors">
             ← Volver a CVJOB
           </button>
         </div>
@@ -315,7 +332,7 @@ export const CampusApp: React.FC<Props> = ({
           <UniversityDashboard
             campusRole={campusRole === 'admin' ? 'admin' : 'coordinator'}
             scopedUniversityId={isCoordinator ? universityId : null}
-            onUniversityLogoChange={(name, logo_url) => setUniData({ name, logo_url })}
+            onUniversityLogoChange={(name, logo_url, campus_bg_url) => setUniData({ name, logo_url, campus_bg_url })}
           />
         )}
 
