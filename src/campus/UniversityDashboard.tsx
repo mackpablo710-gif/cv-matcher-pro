@@ -161,7 +161,7 @@ export const UniversityDashboard: React.FC<Props> = ({
         const urlWithBust = `${publicUrl}?v=${Date.now()}`;
         await supabase.from('universities').update({ logo_url: urlWithBust }).eq('id', selUni);
         const uni = unis.find(u => u.id === selUni);
-        onUniversityLogoChange?.(uni?.name ?? '', urlWithBust, (uni as any)?.campus_bg_url ?? null);
+        onUniversityLogoChange?.(uni?.name ?? '', urlWithBust, uni?.campus_bg_url ?? null);
         loadAll();
       }
     } finally {
@@ -189,8 +189,8 @@ export const UniversityDashboard: React.FC<Props> = ({
           .from('university-assets').getPublicUrl(path);
         const urlWithBust = `${publicUrl}?v=${Date.now()}`;
         await supabase.from('universities').update({ campus_bg_url: urlWithBust }).eq('id', selUni);
-        const uni = unis.find(u => u.id === selUni);
-        onUniversityLogoChange?.(uni?.name ?? '', uni?.logo_url ?? null, urlWithBust);
+        const uniFound = unis.find(u => u.id === selUni);
+        onUniversityLogoChange?.(uniFound?.name ?? '', uniFound?.logo_url ?? null, urlWithBust);
         loadAll();
       }
     } finally {
@@ -227,10 +227,10 @@ export const UniversityDashboard: React.FC<Props> = ({
     if (isCoordinator && scopedUniversityId) {
       setSelUni(scopedUniversityId);
       const first = data?.find(u => u.id === scopedUniversityId);
-      if (first) onUniversityLogoChange?.(first.name, first.logo_url ?? null);
+      if (first) onUniversityLogoChange?.(first.name, first.logo_url ?? null, first.campus_bg_url ?? null);
     } else if (data && data.length > 0 && !selUni) {
       setSelUni(data[0].id);
-      onUniversityLogoChange?.(data[0].name, data[0].logo_url ?? null);
+      onUniversityLogoChange?.(data[0].name, data[0].logo_url ?? null, data[0].campus_bg_url ?? null);
     }
 
     setLoading(false);
@@ -521,7 +521,7 @@ export const UniversityDashboard: React.FC<Props> = ({
                     : 'bg-white border-zinc-100 hover:bg-zinc-50'
                 )}>
                 <div className="flex items-center gap-2 px-4 py-3">
-                  <button onClick={() => { setSelUni(u.id); onUniversityLogoChange?.(u.name, u.logo_url ?? null); }} className="flex-1 text-left min-w-0">
+                  <button onClick={() => { setSelUni(u.id); onUniversityLogoChange?.(u.name, u.logo_url ?? null, u.campus_bg_url ?? null); }} className="flex-1 text-left min-w-0">
                     <p className={cn('font-bold text-sm', selUni === u.id ? 'text-indigo-700' : 'text-zinc-700')}>
                       {u.name}
                     </p>

@@ -5,6 +5,7 @@ export interface University {
   name: string;
   slug: string;
   logo_url?: string;
+  campus_bg_url?: string;   // background photo for the student entry screen
   plan: 'starter' | 'pro' | 'enterprise';
   credits_per_user: number;
   credits_per_month: number;
