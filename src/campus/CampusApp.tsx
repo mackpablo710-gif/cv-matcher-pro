@@ -46,6 +46,9 @@ export const CampusApp: React.FC<Props> = ({
   const [verifying,    setVerifying]    = useState(true);
   // Students see a university entry screen first; admin/coordinator skip it
   const [enteredUni,   setEnteredUni]   = useState(false);
+  // Background photo: computed from Supabase Storage (no DB column needed)
+  const [campusBgUrl,  setCampusBgUrl]  = useState<string | null>(null);
+  const [bgLoaded,     setBgLoaded]     = useState(false);
 
   useEffect(() => {
     if (!user) { onExit(); return; }
@@ -98,6 +101,14 @@ export const CampusApp: React.FC<Props> = ({
             .eq('id', uUser.university_id)
             .single();
           if (uni) setUniData(uni);
+
+          // Derive background URL directly from Storage (URL is deterministic by uni ID).
+          // Works even if campus_bg_url column doesn't exist in DB yet.
+          // The <img onError> will hide it if no photo was uploaded.
+          const { data: bgData } = supabase.storage
+            .from('university-assets')
+            .getPublicUrl(`backgrounds/${uUser.university_id}`);
+          if (bgData?.publicUrl) setCampusBgUrl(bgData.publicUrl);
         }
 
         // Coordinators skip the entry screen (land on university panel)
@@ -125,27 +136,31 @@ export const CampusApp: React.FC<Props> = ({
 
   // ── University entry screen (students only) ──────────────────────────────────
   if (!enteredUni) {
-    const hasBg = !!uniData?.campus_bg_url;
     return (
       <div className="min-h-screen relative flex items-center justify-center p-6 overflow-hidden">
 
-        {/* Background: campus photo or fallback gradient */}
-        {hasBg ? (
+        {/* Gradient fallback — always present beneath everything */}
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900" />
+
+        {/* Campus photo — loaded from Supabase Storage by university ID.
+            onLoad shows it; onError keeps the gradient visible. */}
+        {campusBgUrl && (
           <>
             <img
-              src={uniData!.campus_bg_url!}
+              src={campusBgUrl}
               alt=""
               className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
+              style={{ opacity: bgLoaded ? 1 : 0, transition: 'opacity 0.4s ease' }}
+              onLoad={() => setBgLoaded(true)}
+              onError={() => setBgLoaded(false)}
             />
-            {/* Dark overlay so text is always readable */}
-            <div className="absolute inset-0 bg-black/55 backdrop-blur-[1px]" />
+            {/* Dark overlay — only shown when photo actually loaded */}
+            {bgLoaded && <div className="absolute inset-0 bg-black/55 backdrop-blur-[1px]" />}
           </>
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900" />
         )}
 
-        {/* Logo watermark (only when no bg photo) */}
-        {!hasBg && uniData?.logo_url && (
+        {/* Logo watermark (only when no bg photo loaded) */}
+        {!bgLoaded && uniData?.logo_url && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <img src={uniData.logo_url} alt="" className="max-w-sm opacity-[0.05] select-none" />
           </div>
@@ -332,7 +347,14 @@ export const CampusApp: React.FC<Props> = ({
           <UniversityDashboard
             campusRole={campusRole === 'admin' ? 'admin' : 'coordinator'}
             scopedUniversityId={isCoordinator ? universityId : null}
-            onUniversityLogoChange={(name, logo_url, campus_bg_url) => setUniData({ name, logo_url, campus_bg_url })}
+            onUniversityLogoChange={(name, logo_url, campus_bg_url) => {
+              setUniData({ name, logo_url, campus_bg_url });
+              // If a new background was uploaded, refresh it immediately
+              if (campus_bg_url) {
+                setCampusBgUrl(campus_bg_url);
+                setBgLoaded(false); // force re-check
+              }
+            }}
           />
         )}
 

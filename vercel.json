@@ -30,6 +30,7 @@
     { "source": "/api/campus-verify", "destination": "/api/campus-verify" },
     { "source": "/api/campus-monthly-credits", "destination": "/api/campus-monthly-credits" },
     { "source": "/api/campus-import-students", "destination": "/api/campus-import-students" },
+    { "source": "/api/campus-community-post", "destination": "/api/campus-community-post" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

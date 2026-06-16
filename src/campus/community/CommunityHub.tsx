@@ -46,6 +46,9 @@ interface Props {
   campusRole:   'student' | 'coordinator' | 'admin';
 }
 
+// ── localStorage cache key — prevents repeated join form when RLS blocks SELECT ─
+const profileCacheKey = (uid: string) => `cvjob_comm_profile_${uid}`;
+
 export const CommunityHub: React.FC<Props> = ({
   userId, profile, universityId, campusRole,
 }) => {
@@ -59,13 +62,34 @@ export const CommunityHub: React.FC<Props> = ({
   useEffect(() => { loadProfile(); }, [userId]);
 
   const loadProfile = async () => {
+    // ── Step 1: Check localStorage cache first so the form never re-appears ────
+    const cacheKey = profileCacheKey(userId);
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached) as CommunityProfile;
+        setCommProfile(parsed);
+        setForm({
+          headline:     parsed.headline     ?? '',
+          industry:     parsed.industry     ?? '',
+          looking_for:  parsed.looking_for  ?? [],
+          offering:     parsed.offering     ?? [],
+          linkedin_url: parsed.linkedin_url ?? '',
+        });
+      } catch { /* ignore corrupt cache */ }
+    }
+
+    // ── Step 2: Try DB (may fail if RLS blocks — that's OK, we have cache) ─────
     const { data } = await supabase
       .from('campus_community_profiles')
       .select('*')
       .eq('user_id', userId)
       .maybeSingle();
-    setCommProfile(data ?? null);
+
     if (data) {
+      // Got fresh DB data — update state and refresh cache
+      setCommProfile(data);
+      localStorage.setItem(cacheKey, JSON.stringify(data));
       setForm({
         headline:     data.headline     ?? '',
         industry:     data.industry     ?? '',
@@ -73,10 +97,12 @@ export const CommunityHub: React.FC<Props> = ({
         offering:     data.offering     ?? [],
         linkedin_url: data.linkedin_url ?? '',
       });
-    } else {
-      // Pre-fill name from CVJOB profile
+    } else if (!cached) {
+      // No cache AND no DB data → first time, show join form
+      setCommProfile(null);
       setForm(f => ({ ...f, headline: profile?.full_name ? `${profile.full_name} · ` : '' }));
     }
+    // If cached but DB returned null (RLS block): keep the cached profile, don't reset
   };
 
   const toggleChip = (arr: string[], val: string) =>
@@ -113,6 +139,8 @@ export const CommunityHub: React.FC<Props> = ({
       created_at:    new Date().toISOString(),
     };
     setCommProfile(localProfile);
+    // Persist in localStorage so the join form never shows again
+    localStorage.setItem(profileCacheKey(userId), JSON.stringify(localProfile));
     setEditMode(false);
     setSaving(false);
 
@@ -129,7 +157,11 @@ export const CommunityHub: React.FC<Props> = ({
           .select('*')
           .eq('user_id', userId)
           .maybeSingle();
-        if (data) setCommProfile(data);
+        if (data) {
+          setCommProfile(data);
+          // Update cache with real DB row
+          localStorage.setItem(profileCacheKey(userId), JSON.stringify(data));
+        }
       }
     } catch {
       // Silently ignore — user is already inside the community

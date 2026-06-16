@@ -64,7 +64,8 @@ export const Startups: React.FC<Props> = ({ userId, universityId, campusRole }) 
   const [filter,     setFilter]     = useState('all');
   const [showCreate, setShowCreate] = useState(false);
   const [form,       setForm]       = useState({ ...EMPTY });
-  const [saving,     setSaving]     = useState(false);
+  const [saving,      setSaving]      = useState(false);
+  const [createError, setCreateError] = useState('');
 
   useEffect(() => { load(); }, [userId, universityId]);
 
@@ -116,17 +117,30 @@ export const Startups: React.FC<Props> = ({ userId, universityId, campusRole }) 
   const createStartup = async () => {
     if (!form.title.trim()) return;
     setSaving(true);
-    await supabase.from('community_posts').insert({
-      user_id:       userId,
-      university_id: universityId,
-      post_type:     'startup',
-      title:         form.title.trim(),
-      body:          form.body.trim() || null,
-      tags:          form.tags.split(',').map(t => t.trim()).filter(Boolean),
-      needs:         form.needs,
-      startup_stage: form.stage,
-      status:        'active',
-    });
+    setCreateError('');
+    try {
+      const res = await fetch('/api/campus-community-post', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id:       userId,
+          university_id: universityId,
+          post_type:     'startup',
+          title:         form.title.trim(),
+          body:          form.body.trim() || null,
+          tags:          form.tags.split(',').map(t => t.trim()).filter(Boolean),
+          needs:         form.needs,
+          startup_stage: form.stage,
+          status:        'active',
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Error al publicar');
+    } catch (err: any) {
+      setCreateError(err.message || 'Error al publicar. Intenta de nuevo.');
+      setSaving(false);
+      return;
+    }
     setSaving(false);
     setShowCreate(false);
     setForm({ ...EMPTY });
@@ -348,8 +362,12 @@ export const Startups: React.FC<Props> = ({ userId, universityId, campusRole }) 
                 />
               </div>
 
+              {createError && (
+                <p className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2">{createError}</p>
+              )}
+
               <div className="flex gap-2 pt-1">
-                <button onClick={() => { setShowCreate(false); setForm({ ...EMPTY }); }}
+                <button onClick={() => { setShowCreate(false); setForm({ ...EMPTY }); setCreateError(''); }}
                   className="px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-100 rounded-xl transition-colors">
                   Cancelar
                 </button>

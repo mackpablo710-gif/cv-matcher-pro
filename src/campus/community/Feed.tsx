@@ -110,9 +110,10 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
   const [filter,  setFilter]  = useState({ type: 'all', cat: '' });
 
   // Create modal
-  const [showCreate, setShowCreate] = useState(false);
-  const [form,       setForm]       = useState({ ...EMPTY_FORM });
-  const [saving,     setSaving]     = useState(false);
+  const [showCreate,   setShowCreate]   = useState(false);
+  const [form,         setForm]         = useState({ ...EMPTY_FORM });
+  const [saving,       setSaving]       = useState(false);
+  const [createError,  setCreateError]  = useState('');
 
   // Inline comment (quick reply on card)
   const [expandedId,    setExpandedId]    = useState<string | null>(null);
@@ -260,18 +261,31 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
   const createPost = async () => {
     if (!form.title.trim()) return;
     setSaving(true);
+    setCreateError('');
     const tags = form.tags.split(',').map(t => t.trim()).filter(Boolean);
-    await supabase.from('community_posts').insert({
-      user_id:       userId,
-      university_id: universityId,
-      post_type:     form.post_type,
-      category:      form.post_type === 'marketplace' ? form.category : null,
-      title:         form.title.trim(),
-      body:          form.body.trim() || null,
-      tags,
-      needs:         form.needs,
-      status:        'active',
-    });
+    try {
+      const res = await fetch('/api/campus-community-post', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id:       userId,
+          university_id: universityId,
+          post_type:     form.post_type,
+          category:      form.category,
+          title:         form.title.trim(),
+          body:          form.body.trim() || null,
+          tags,
+          needs:         form.needs,
+          status:        'active',
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Error al publicar');
+    } catch (err: any) {
+      setCreateError(err.message || 'Error al publicar. Intenta de nuevo.');
+      setSaving(false);
+      return;
+    }
     setSaving(false);
     setShowCreate(false);
     setForm({ ...EMPTY_FORM });
@@ -768,8 +782,12 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
                 />
               </div>
 
+              {createError && (
+                <p className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2">{createError}</p>
+              )}
+
               <div className="flex gap-2 pt-1">
-                <button onClick={() => { setShowCreate(false); setForm({ ...EMPTY_FORM }); setNeedsOtherActive(false); setNeedsOtherText(''); }}
+                <button onClick={() => { setShowCreate(false); setForm({ ...EMPTY_FORM }); setNeedsOtherActive(false); setNeedsOtherText(''); setCreateError(''); }}
                   className="px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-100 rounded-xl transition-colors">
                   Cancelar
                 </button>
