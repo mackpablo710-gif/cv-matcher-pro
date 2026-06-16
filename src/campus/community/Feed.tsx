@@ -264,10 +264,11 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
     setCreateError('');
     const tags = form.tags.split(',').map(t => t.trim()).filter(Boolean);
     try {
-      const res = await fetch('/api/campus-community-post', {
+      const res = await fetch('/api/campus-import-students', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          action:        'create_post',
           user_id:       userId,
           university_id: universityId,
           post_type:     form.post_type,

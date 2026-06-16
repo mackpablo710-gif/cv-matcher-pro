@@ -36,7 +36,38 @@ interface StudentRow {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { admin_user_id, university_id, students } = req.body ?? {};
+  const body = req.body ?? {};
+
+  // ── Action: create community post (bypasses RLS using service role) ──────────
+  if (body.action === 'create_post') {
+    const { user_id, university_id: uni_id, post_type, category, title, body: postBody, tags, needs, startup_stage, status } = body;
+    if (!user_id || !uni_id || !title || !post_type)
+      return res.status(400).json({ error: 'Missing required fields' });
+
+    const [{ data: enrollment }, { data: prof }] = await Promise.all([
+      supabase.from('university_users').select('id').eq('user_id', user_id).eq('university_id', uni_id).eq('active', true).maybeSingle(),
+      supabase.from('profiles').select('is_admin').eq('id', user_id).maybeSingle(),
+    ]);
+    if (!enrollment && !prof?.is_admin)
+      return res.status(403).json({ error: 'Not enrolled in this university' });
+
+    const { data, error } = await supabase.from('community_posts').insert({
+      user_id, university_id: uni_id, post_type,
+      category:      post_type === 'marketplace' ? (category || null) : null,
+      title:         String(title).trim(),
+      body:          postBody ? String(postBody).trim() || null : null,
+      tags:          Array.isArray(tags)  ? tags  : [],
+      needs:         Array.isArray(needs) ? needs : [],
+      startup_stage: startup_stage || null,
+      status:        status || 'active',
+    }).select().single();
+
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ ok: true, post: data });
+  }
+
+  // ── Action: import students (original behaviour) ─────────────────────────────
+  const { admin_user_id, university_id, students } = body;
 
   if (!admin_user_id || !university_id || !Array.isArray(students)) {
     return res.status(400).json({ error: 'Missing required fields' });
