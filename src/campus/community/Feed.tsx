@@ -10,7 +10,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Plus, Heart, MessageSquare, X, Send, Briefcase,
-  BookOpen, Users, ShoppingBag, Megaphone,
+  BookOpen, Users, ShoppingBag, Megaphone, ExternalLink,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { CommunityPost, CommunityProfile, PostType } from '../types';
@@ -83,7 +83,7 @@ const NEEDS_OPTIONS = [
 const EMPTY_FORM = {
   post_type: 'marketplace' as PostType,
   category:  'busco' as 'busco' | 'ofrezco',
-  title: '', body: '', tags: '',
+  title: '', body: '', tags: '', link_url: '',
   needs: [] as string[],
 };
 
@@ -268,6 +268,7 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
           body:          form.body.trim() || null,
           tags,
           needs:         form.needs,
+          link_url:      form.link_url.trim() || null,
           status:        'active',
         }),
       });
@@ -283,6 +284,7 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
     setForm({ ...EMPTY_FORM });
     setNeedsOtherActive(false);
     setNeedsOtherText('');
+    setCreateError('');
     load();
   };
 
@@ -418,6 +420,15 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
                         <span key={tag} className="text-[10px] text-zinc-400 bg-zinc-100 px-2 py-0.5 rounded-full">#{tag}</span>
                       ))}
                     </div>
+                  )}
+
+                  {post.link_url && (
+                    <a href={post.link_url} target="_blank" rel="noopener noreferrer"
+                      onClick={e => e.stopPropagation()}
+                      className="flex items-center gap-1.5 mt-2 px-2.5 py-1.5 bg-indigo-50 rounded-xl text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors w-fit max-w-full overflow-hidden">
+                      <ExternalLink className="w-3 h-3 shrink-0" />
+                      <span className="truncate">{post.link_url}</span>
+                    </a>
                   )}
 
                   <div className="flex items-center gap-4 mt-3">
@@ -562,6 +573,15 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
                       <span key={tag} className="text-xs text-zinc-400 bg-zinc-100 px-2.5 py-1 rounded-full">#{tag}</span>
                     ))}
                   </div>
+                )}
+
+                {detailPost.link_url && (
+                  <a href={detailPost.link_url} target="_blank" rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    className="flex items-center gap-2 px-4 py-3 bg-indigo-50 rounded-2xl text-sm font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors">
+                    <ExternalLink className="w-4 h-4 shrink-0" />
+                    <span className="truncate">{detailPost.link_url}</span>
+                  </a>
                 )}
 
                 <div className="flex items-center gap-4 py-2 border-t border-zinc-100">
@@ -772,6 +792,19 @@ export const Feed: React.FC<Props> = ({ userId, universityId, myProfile, campusR
                   placeholder="Ej: fintech, startup, react, marketing"
                   className="mt-1 w-full border border-zinc-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-indigo-400"
                 />
+              </div>
+
+              {/* Link */}
+              <div>
+                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Enlace (opcional)</label>
+                <div className="relative mt-1">
+                  <ExternalLink className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400" />
+                  <input value={form.link_url} onChange={e => setForm(f => ({ ...f, link_url: e.target.value }))}
+                    placeholder="https://..."
+                    type="url"
+                    className="w-full border border-zinc-200 rounded-xl pl-8 pr-3 py-2.5 text-sm outline-none focus:border-indigo-400"
+                  />
+                </div>
               </div>
 
               {createError && (

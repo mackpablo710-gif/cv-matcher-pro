@@ -40,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── Action: create community post (bypasses RLS using service role) ──────────
   if (body.action === 'create_post') {
-    const { user_id, university_id: uni_id, post_type, category, title, body: postBody, tags, needs, startup_stage, status } = body;
+    const { user_id, university_id: uni_id, post_type, category, title, body: postBody, tags, needs, startup_stage, link_url, status } = body;
     if (!user_id || !uni_id || !title || !post_type)
       return res.status(400).json({ error: 'Missing required fields' });
 
@@ -59,6 +59,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       tags:          Array.isArray(tags)  ? tags  : [],
       needs:         Array.isArray(needs) ? needs : [],
       startup_stage: startup_stage || null,
+      link_url:      link_url    ? String(link_url).trim() || null : null,
       status:        status || 'active',
     }).select().single();
 
@@ -95,29 +96,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.json({ ok: true, data: data ?? [] });
   }
 
-  // ── Action: read community profiles + university data (bypasses RLS) ─────────
+  // ── Action: read ALL university members (bypasses RLS) ──────────────────────
   if (body.action === 'get_profiles') {
     const { university_id: uni_id, current_user_id } = body;
     if (!uni_id) return res.status(400).json({ error: 'Missing university_id' });
 
-    const [{ data: profiles }, { data: uuRows }] = await Promise.all([
+    // All active members
+    const { data: members, error: membErr } = await supabase
+      .from('university_users')
+      .select('user_id, job_title, company, career, role')
+      .eq('university_id', uni_id)
+      .eq('active', true);
+    if (membErr) return res.status(500).json({ error: membErr.message });
+
+    const userIds = (members ?? []).map((m: any) => m.user_id);
+    if (userIds.length === 0) return res.json({ ok: true, data: [] });
+
+    // Profiles (name/email) + optional community profile (headline/linkedin)
+    const [{ data: profileRows }, { data: commProfiles }] = await Promise.all([
+      supabase.from('profiles').select('id, full_name, email').in('id', userIds),
       supabase.from('campus_community_profiles')
-        .select('*, profile:profiles(full_name, email)')
-        .eq('university_id', uni_id)
-        .eq('is_visible', true),
-      supabase.from('university_users')
-        .select('user_id, job_title, company')
+        .select('user_id, headline, linkedin_url')
         .eq('university_id', uni_id),
     ]);
 
-    const uuMap = new Map((uuRows ?? []).map((r: any) => [r.user_id, r]));
-    const enriched = (profiles ?? [])
-      .filter((p: any) => !current_user_id || p.user_id !== current_user_id)
-      .map((p: any) => ({
-        ...p,
-        job_title: uuMap.get(p.user_id)?.job_title ?? null,
-        company:   uuMap.get(p.user_id)?.company   ?? null,
-      }));
+    const profileMap = new Map((profileRows ?? []).map((p: any) => [p.id, p]));
+    const commMap    = new Map((commProfiles ?? []).map((p: any) => [p.user_id, p]));
+
+    const enriched = (members ?? [])
+      .filter((m: any) => !current_user_id || m.user_id !== current_user_id)
+      .map((m: any) => {
+        const prof = profileMap.get(m.user_id) ?? {};
+        const comm = commMap.get(m.user_id)    ?? {};
+        return {
+          user_id:      m.user_id,
+          full_name:    (prof as any).full_name    ?? '',
+          email:        (prof as any).email        ?? '',
+          job_title:    m.job_title                ?? null,
+          company:      m.company                  ?? null,
+          career:       m.career                   ?? null,
+          role:         m.role                     ?? 'student',
+          headline:     (comm as any).headline     ?? null,
+          linkedin_url: (comm as any).linkedin_url ?? null,
+        };
+      })
+      .filter((m: any) => m.full_name || m.email);
 
     return res.json({ ok: true, data: enriched });
   }

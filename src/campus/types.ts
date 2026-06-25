@@ -109,6 +109,7 @@ export interface CommunityPost {
   tags: string[];
   needs: string[];
   startup_stage: string | null;
+  link_url: string | null;
   status: 'active' | 'closed' | 'hidden';
   likes_count: number;
   comments_count: number;
