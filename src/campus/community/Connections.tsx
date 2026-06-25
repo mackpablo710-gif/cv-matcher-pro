@@ -9,8 +9,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
   ExternalLink, RefreshCw, Users, MessageCircle,
-  Send, X, ArrowLeft, GraduationCap, Briefcase,
+  Send, X, ArrowLeft, GraduationCap, Briefcase, Bell,
 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 function cn(...c: (string | undefined | false)[]) { return c.filter(Boolean).join(' '); }
 
@@ -38,13 +39,14 @@ interface ChatMessage {
 }
 
 interface Props {
-  userId:       string;
-  universityId: string | null;
-  myProfile:    any;
-  campusRole?:  'student' | 'coordinator' | 'admin';
+  userId:                string;
+  universityId:          string | null;
+  myProfile:             any;
+  campusRole?:           'student' | 'coordinator' | 'admin';
+  onUnreadCountChange?:  (count: number) => void;
 }
 
-export const Connections: React.FC<Props> = ({ userId, universityId, campusRole }) => {
+export const Connections: React.FC<Props> = ({ userId, universityId, campusRole, onUnreadCountChange }) => {
   const [members,    setMembers]    = useState<UniversityMember[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [search,     setSearch]     = useState('');
@@ -54,13 +56,68 @@ export const Connections: React.FC<Props> = ({ userId, universityId, campusRole 
   const [sending,    setSending]    = useState(false);
   const [msgLoading, setMsgLoading] = useState(false);
   const [msgError,   setMsgError]   = useState('');
+  // Map: from_user_id → unread message count
+  const [unreadFrom, setUnreadFrom] = useState<Map<string, number>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Refs so realtime callback always sees latest values without stale closures
+  const chatWithRef = useRef<UniversityMember | null>(null);
+  const membersRef  = useRef<UniversityMember[]>([]);
 
   const isCoordOrAdmin = campusRole === 'coordinator' || campusRole === 'admin';
+
+  useEffect(() => { chatWithRef.current = chatWith; }, [chatWith]);
+  useEffect(() => { membersRef.current = members; }, [members]);
 
   useEffect(() => { load(); }, [userId, universityId]);
   useEffect(() => { if (chatWith) loadMessages(chatWith.user_id); }, [chatWith?.user_id]);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+
+  // ── Supabase Realtime: suscripción a mensajes entrantes ──────────────────────
+  useEffect(() => {
+    if (!userId) return;
+
+    // Pedir permiso de notificaciones del navegador
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
+    const channel = supabase
+      .channel(`campus-msgs-${userId}`)
+      .on('postgres_changes', {
+        event:  'INSERT',
+        schema: 'public',
+        table:  'community_messages',
+        filter: `to_user_id=eq.${userId}`,
+      }, (payload) => {
+        const msg = payload.new as ChatMessage;
+
+        if (chatWithRef.current?.user_id === msg.from_user_id) {
+          // Chat con esta persona está abierto → agregar al hilo
+          setMessages(prev => [...prev, msg]);
+        } else {
+          // Chat cerrado → incrementar badge de esa persona
+          setUnreadFrom(prev => {
+            const next = new Map(prev);
+            next.set(msg.from_user_id, (next.get(msg.from_user_id) ?? 0) + 1);
+            const total = Array.from(next.values()).reduce((a, b) => a + b, 0);
+            onUnreadCountChange?.(total);
+            return next;
+          });
+
+          // Notificación del navegador
+          if ('Notification' in window && Notification.permission === 'granted') {
+            const sender = membersRef.current.find(m => m.user_id === msg.from_user_id);
+            new Notification(`Nuevo mensaje de ${sender?.full_name || 'un compañero'}`, {
+              body: msg.body.length > 100 ? msg.body.slice(0, 100) + '…' : msg.body,
+              icon: '/favicon.ico',
+            });
+          }
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [userId]);
 
   const apiPost = (action: string, extra?: object) =>
     fetch('/api/campus-import-students', {
@@ -100,6 +157,18 @@ export const Connections: React.FC<Props> = ({ userId, universityId, campusRole 
       setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
     }
     setSending(false);
+  };
+
+  const openChat = (m: UniversityMember) => {
+    setChatWith(m);
+    // Limpiar badge de mensajes no leídos de esta persona
+    setUnreadFrom(prev => {
+      const next = new Map(prev);
+      next.delete(m.user_id);
+      const total = Array.from(next.values()).reduce((a, b) => a + b, 0);
+      onUnreadCountChange?.(total);
+      return next;
+    });
   };
 
   const closeChat = () => { setChatWith(null); setMessages([]); setMsgInput(''); setMsgError(''); };
@@ -154,8 +223,17 @@ export const Connections: React.FC<Props> = ({ userId, universityId, campusRole 
 
       {/* Member cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map(m => (
-          <div key={m.user_id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5 flex flex-col">
+        {filtered.map(m => {
+          const unread = unreadFrom.get(m.user_id) ?? 0;
+          return (
+          <div key={m.user_id} className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-5 flex flex-col relative">
+
+            {/* Unread badge */}
+            {unread > 0 && (
+              <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center shadow-sm z-10">
+                <span className="text-[10px] font-black text-white">{unread > 9 ? '9+' : unread}</span>
+              </div>
+            )}
 
             {/* Avatar + role badge */}
             <div className="flex items-start justify-between mb-3">
@@ -221,15 +299,21 @@ export const Connections: React.FC<Props> = ({ userId, universityId, campusRole 
                 </a>
               )}
               <button
-                onClick={() => setChatWith(m)}
+                onClick={() => openChat(m)}
                 title="Enviar mensaje interno"
-                className="flex-1 py-2 text-xs font-bold rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1.5">
-                <MessageCircle className="w-3.5 h-3.5" />
-                Mensaje
+                className={cn(
+                  'flex-1 py-2 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5',
+                  unread > 0
+                    ? 'bg-red-500 text-white hover:bg-red-600'
+                    : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                )}>
+                {unread > 0 ? <Bell className="w-3.5 h-3.5" /> : <MessageCircle className="w-3.5 h-3.5" />}
+                {unread > 0 ? `${unread} nuevo${unread > 1 ? 's' : ''}` : 'Mensaje'}
               </button>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* ══ Chat modal ════════════════════════════════════════════════════════════ */}

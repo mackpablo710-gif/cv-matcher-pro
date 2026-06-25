@@ -52,12 +52,13 @@ const profileCacheKey = (uid: string) => `cvjob_comm_profile_${uid}`;
 export const CommunityHub: React.FC<Props> = ({
   userId, profile, universityId, campusRole,
 }) => {
-  const [commProfile, setCommProfile] = useState<CommunityProfile | null | undefined>(undefined);
-  const [tab,         setTab]         = useState<CommTab>('feed');
-  const [editMode,    setEditMode]    = useState(false);
-  const [form,        setForm]        = useState({ ...EMPTY_SETUP });
-  const [saving,      setSaving]      = useState(false);
-  const [saveError,   setSaveError]   = useState('');
+  const [commProfile,    setCommProfile]    = useState<CommunityProfile | null | undefined>(undefined);
+  const [tab,            setTab]            = useState<CommTab>('feed');
+  const [editMode,       setEditMode]       = useState(false);
+  const [form,           setForm]           = useState({ ...EMPTY_SETUP });
+  const [saving,         setSaving]         = useState(false);
+  const [saveError,      setSaveError]      = useState('');
+  const [unreadMsgCount, setUnreadMsgCount] = useState(0);
 
   useEffect(() => { loadProfile(); }, [userId]);
 
@@ -370,13 +371,18 @@ export const CommunityHub: React.FC<Props> = ({
       {/* Sub-tabs */}
       <div className="flex gap-1 bg-zinc-100 rounded-xl p-1">
         {commTabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
+          <button key={t.id} onClick={() => { setTab(t.id); if (t.id === 'connections') setUnreadMsgCount(0); }}
             className={cn(
-              'flex items-center gap-1.5 flex-1 justify-center py-2 text-sm font-bold rounded-lg transition-all',
+              'flex items-center gap-1.5 flex-1 justify-center py-2 text-sm font-bold rounded-lg transition-all relative',
               tab === t.id ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'
             )}>
             <t.icon className="w-4 h-4" />
             <span className="hidden sm:block">{t.label}</span>
+            {t.id === 'connections' && unreadMsgCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center px-1">
+                {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -396,6 +402,7 @@ export const CommunityHub: React.FC<Props> = ({
           universityId={universityId}
           myProfile={commProfile}
           campusRole={campusRole}
+          onUnreadCountChange={setUnreadMsgCount}
         />
       )}
       {tab === 'startups' && (
