@@ -193,12 +193,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!from_user_id || !to_user_id || !msgBody)
       return res.status(400).json({ error: 'Missing fields' });
 
-    // Verify both users are in the same university
-    const [{ data: fromEnroll }, { data: toEnroll }] = await Promise.all([
-      supabase.from('university_users').select('university_id').eq('user_id', from_user_id).eq('active', true).maybeSingle(),
-      supabase.from('university_users').select('university_id').eq('user_id', to_user_id).eq('active', true).maybeSingle(),
+    // Get recipient's university
+    const { data: toEnroll } = await supabase
+      .from('university_users').select('university_id')
+      .eq('user_id', to_user_id).eq('active', true).maybeSingle();
+    if (!toEnroll) return res.status(403).json({ error: 'Recipient not found in any university' });
+
+    // Sender must be: (a) active in same university, OR (b) admin, OR (c) coordinator of any university
+    const [{ data: fromEnroll }, { data: fromProfile }] = await Promise.all([
+      supabase.from('university_users').select('university_id, role')
+        .eq('user_id', from_user_id).eq('active', true).maybeSingle(),
+      supabase.from('profiles').select('is_admin').eq('id', from_user_id).maybeSingle(),
     ]);
-    if (!fromEnroll || !toEnroll || fromEnroll.university_id !== toEnroll.university_id)
+
+    const sameUniversity = fromEnroll?.university_id === toEnroll.university_id;
+    const isAdmin        = fromProfile?.is_admin === true;
+    const isCoordinator  = fromEnroll?.role === 'coordinator';
+
+    if (!sameUniversity && !isAdmin && !isCoordinator)
       return res.status(403).json({ error: 'Users not in same university' });
 
     const { data, error } = await supabase.from('community_messages')
