@@ -69,26 +69,18 @@ export const Startups: React.FC<Props> = ({ userId, universityId, campusRole }) 
 
   useEffect(() => { load(); }, [userId, universityId]);
 
+  const apiPost = (action: string, extra?: object) =>
+    fetch('/api/campus-import-students', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, ...extra }),
+    }).then(r => r.json());
+
   const load = async () => {
     setLoading(true);
-    const startupsQuery = (() => {
-      let q = supabase
-        .from('community_posts')
-        .select('*, author:profiles(full_name, email)')
-        .eq('post_type', 'startup')
-        .eq('status', 'active')
-        .order('created_at', { ascending: false });
-      // Scope to university — second security layer after RLS
-      if (universityId) q = q.eq('university_id', universityId);
-      return q;
-    })();
-
     const [postsRes, likesRes] = await Promise.all([
-      startupsQuery,
-      supabase
-        .from('community_likes')
-        .select('post_id')
-        .eq('user_id', userId),
+      apiPost('get_startup_posts', { university_id: universityId }),
+      apiPost('get_likes', { user_id: userId }),
     ]);
     setStartups(postsRes.data ?? []);
     setMyLikes(new Set((likesRes.data ?? []).map((l: any) => l.post_id)));
@@ -105,12 +97,11 @@ export const Startups: React.FC<Props> = ({ userId, universityId, campusRole }) 
     setStartups(prev => prev.map(p =>
       p.id === s.id ? { ...p, likes_count: p.likes_count + (liked ? -1 : 1) } : p
     ));
-    if (liked) await supabase.from('community_likes').delete().eq('post_id', s.id).eq('user_id', userId);
-    else       await supabase.from('community_likes').insert({ post_id: s.id, user_id: userId });
+    apiPost('toggle_like', { user_id: userId, post_id: s.id, liked });
   };
 
   const hideStartup = async (id: string) => {
-    await supabase.from('community_posts').update({ status: 'hidden' }).eq('id', id);
+    apiPost('hide_post', { post_id: id, user_id: userId });
     setStartups(prev => prev.filter(s => s.id !== id));
   };
 

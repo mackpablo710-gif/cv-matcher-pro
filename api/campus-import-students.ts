@@ -66,6 +66,126 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.json({ ok: true, post: data });
   }
 
+  // ── Action: read community posts (bypasses RLS) ─────────────────────────────
+  if (body.action === 'get_posts') {
+    const { university_id: uni_id, exclude_type } = body;
+    if (!uni_id) return res.status(400).json({ error: 'Missing university_id' });
+    let q = supabase.from('community_posts')
+      .select('*, author:profiles(full_name, email)')
+      .eq('university_id', uni_id)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false });
+    if (exclude_type) q = (q as any).neq('post_type', exclude_type);
+    const { data, error } = await q;
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ ok: true, data: data ?? [] });
+  }
+
+  // ── Action: read startup posts (bypasses RLS) ────────────────────────────────
+  if (body.action === 'get_startup_posts') {
+    const { university_id: uni_id } = body;
+    if (!uni_id) return res.status(400).json({ error: 'Missing university_id' });
+    const { data, error } = await supabase.from('community_posts')
+      .select('*, author:profiles(full_name, email)')
+      .eq('university_id', uni_id)
+      .eq('post_type', 'startup')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ ok: true, data: data ?? [] });
+  }
+
+  // ── Action: read community profiles + university data (bypasses RLS) ─────────
+  if (body.action === 'get_profiles') {
+    const { university_id: uni_id, current_user_id } = body;
+    if (!uni_id) return res.status(400).json({ error: 'Missing university_id' });
+
+    const [{ data: profiles }, { data: uuRows }] = await Promise.all([
+      supabase.from('campus_community_profiles')
+        .select('*, profile:profiles(full_name, email)')
+        .eq('university_id', uni_id)
+        .eq('is_visible', true),
+      supabase.from('university_users')
+        .select('user_id, job_title, company')
+        .eq('university_id', uni_id),
+    ]);
+
+    const uuMap = new Map((uuRows ?? []).map((r: any) => [r.user_id, r]));
+    const enriched = (profiles ?? [])
+      .filter((p: any) => !current_user_id || p.user_id !== current_user_id)
+      .map((p: any) => ({
+        ...p,
+        job_title: uuMap.get(p.user_id)?.job_title ?? null,
+        company:   uuMap.get(p.user_id)?.company   ?? null,
+      }));
+
+    return res.json({ ok: true, data: enriched });
+  }
+
+  // ── Action: read likes for a user (bypasses RLS) ─────────────────────────────
+  if (body.action === 'get_likes') {
+    const { user_id } = body;
+    if (!user_id) return res.status(400).json({ error: 'Missing user_id' });
+    const { data, error } = await supabase.from('community_likes')
+      .select('post_id').eq('user_id', user_id);
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ ok: true, data: data ?? [] });
+  }
+
+  // ── Action: toggle like on a post (bypasses RLS) ─────────────────────────────
+  if (body.action === 'toggle_like') {
+    const { user_id, post_id, liked } = body;
+    if (!user_id || !post_id) return res.status(400).json({ error: 'Missing fields' });
+    if (liked) {
+      await supabase.from('community_likes').delete().eq('post_id', post_id).eq('user_id', user_id);
+    } else {
+      await supabase.from('community_likes').upsert({ post_id, user_id }, { onConflict: 'post_id,user_id' });
+    }
+    return res.json({ ok: true });
+  }
+
+  // ── Action: hide/delete a post (bypasses RLS) ────────────────────────────────
+  if (body.action === 'hide_post') {
+    const { post_id, user_id } = body;
+    if (!post_id) return res.status(400).json({ error: 'Missing post_id' });
+    await supabase.from('community_posts').update({ status: 'hidden' }).eq('id', post_id);
+    return res.json({ ok: true });
+  }
+
+  // ── Action: get messages between two users (bypasses RLS) ───────────────────
+  if (body.action === 'get_messages') {
+    const { user_id, other_user_id } = body;
+    if (!user_id || !other_user_id) return res.status(400).json({ error: 'Missing fields' });
+    const { data, error } = await supabase.from('community_messages')
+      .select('id, from_user_id, body, created_at')
+      .or(`and(from_user_id.eq.${user_id},to_user_id.eq.${other_user_id}),and(from_user_id.eq.${other_user_id},to_user_id.eq.${user_id})`)
+      .order('created_at', { ascending: true });
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ ok: true, data: data ?? [] });
+  }
+
+  // ── Action: send message between university members (bypasses RLS) ──────────
+  if (body.action === 'send_message') {
+    const { from_user_id, to_user_id, body: msgBody } = body;
+    if (!from_user_id || !to_user_id || !msgBody)
+      return res.status(400).json({ error: 'Missing fields' });
+
+    // Verify both users are in the same university
+    const [{ data: fromEnroll }, { data: toEnroll }] = await Promise.all([
+      supabase.from('university_users').select('university_id').eq('user_id', from_user_id).eq('active', true).maybeSingle(),
+      supabase.from('university_users').select('university_id').eq('user_id', to_user_id).eq('active', true).maybeSingle(),
+    ]);
+    if (!fromEnroll || !toEnroll || fromEnroll.university_id !== toEnroll.university_id)
+      return res.status(403).json({ error: 'Users not in same university' });
+
+    const { data, error } = await supabase.from('community_messages')
+      .insert({ from_user_id, to_user_id, body: String(msgBody).trim() })
+      .select('id, from_user_id, body, created_at')
+      .single();
+    if (error) return res.status(500).json({ error: error.message });
+    return res.json({ ok: true, message: data });
+  }
+
   // ── Action: import students (original behaviour) ─────────────────────────────
   const { admin_user_id, university_id, students } = body;
 

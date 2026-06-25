@@ -155,7 +155,7 @@ export const CampusApp: React.FC<Props> = ({
               onError={() => setBgLoaded(false)}
             />
             {/* Dark overlay — only shown when photo actually loaded */}
-            {bgLoaded && <div className="absolute inset-0 bg-black/55 backdrop-blur-[1px]" />}
+            {bgLoaded && <div className="absolute inset-0 bg-black/50" />}
           </>
         )}
 

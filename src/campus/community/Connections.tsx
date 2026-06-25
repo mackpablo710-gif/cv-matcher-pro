@@ -84,77 +84,43 @@ export const Connections: React.FC<Props> = ({ userId, universityId, myProfile, 
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // ── Load community profiles + university_users for cargo/empresa ─────────────
+  const apiPost = (action: string, extra?: object) =>
+    fetch('/api/campus-import-students', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, ...extra }),
+    }).then(r => r.json());
+
+  // ── Load community profiles via service role (bypasses RLS) ──────────────────
   const load = async () => {
     setLoading(true);
 
-    const profilesQuery = (() => {
-      let q = supabase
-        .from('campus_community_profiles')
-        .select('*, profile:profiles(full_name, email)')
-        .eq('is_visible', true)
-        .neq('user_id', userId);
-      if (universityId) q = q.eq('university_id', universityId);
-      return q;
-    })();
-
     const [profRes, connRes] = await Promise.all([
-      profilesQuery,
+      apiPost('get_profiles', { university_id: universityId, current_user_id: userId }),
       supabase.from('community_connections').select('to_user_id').eq('from_user_id', userId),
     ]);
 
-    const all = (profRes.data ?? []) as CommunityProfile[];
-
-    // Fetch job_title + company from university_users for each profile
-    let uuMap = new Map<string, { job_title?: string | null; company?: string | null }>();
-    if (all.length > 0 && universityId) {
-      const userIds = all.map(p => p.user_id);
-      const { data: uuRows } = await supabase
-        .from('university_users')
-        .select('user_id, job_title, company')
-        .eq('university_id', universityId)
-        .in('user_id', userIds);
-      if (uuRows) {
-        uuMap = new Map(
-          (uuRows as any[]).map(r => [r.user_id, { job_title: r.job_title ?? null, company: r.company ?? null }])
-        );
-      }
-    }
-
+    const all = (profRes.data ?? []) as ExtendedProfile[];
     const scored: ExtendedProfile[] = all
-      .map(p => ({
-        ...p,
-        score:     myProfile ? matchScore(myProfile, p) : 0,
-        job_title: uuMap.get(p.user_id)?.job_title ?? null,
-        company:   uuMap.get(p.user_id)?.company   ?? null,
-      }))
+      .map(p => ({ ...p, score: myProfile ? matchScore(myProfile, p) : 0 }))
       .sort((a, b) => b.score - a.score);
 
     setPeople(scored);
-    setConnected(new Set((connRes.data ?? []).map((c: any) => c.to_user_id)));
+    setConnected(new Set(((connRes.data as any[]) ?? []).map((c: any) => c.to_user_id)));
     setLoading(false);
   };
 
-  // ── Load chat messages between current user and chatWith ─────────────────────
+  // ── Load chat messages via service role ──────────────────────────────────────
   const loadMessages = async (otherUserId: string) => {
     setMsgLoading(true);
     setMsgError('');
     try {
-      const { data, error } = await supabase
-        .from('community_messages')
-        .select('id, from_user_id, body, created_at')
-        .or(
-          `and(from_user_id.eq.${userId},to_user_id.eq.${otherUserId}),` +
-          `and(from_user_id.eq.${otherUserId},to_user_id.eq.${userId})`
-        )
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        // Table may not exist yet — show helpful message
-        setMsgError('Mensajería no configurada aún. Ejecuta el SQL de mensajería en Supabase.');
+      const res = await apiPost('get_messages', { user_id: userId, other_user_id: otherUserId });
+      if (!res.ok) {
+        setMsgError('La tabla de mensajes no existe aún en Supabase. Crea la tabla community_messages.');
         setMessages([]);
       } else {
-        setMessages((data ?? []) as ChatMessage[]);
+        setMessages((res.data ?? []) as ChatMessage[]);
       }
     } catch {
       setMsgError('Error al cargar mensajes.');
@@ -163,7 +129,7 @@ export const Connections: React.FC<Props> = ({ userId, universityId, myProfile, 
     setMsgLoading(false);
   };
 
-  // ── Send a message ────────────────────────────────────────────────────────────
+  // ── Send a message via service role ──────────────────────────────────────────
   const sendMessage = async () => {
     if (!msgInput.trim() || !chatWith || sending) return;
     const body = msgInput.trim();
@@ -180,17 +146,16 @@ export const Connections: React.FC<Props> = ({ userId, universityId, myProfile, 
     setMessages(prev => [...prev, tempMsg]);
 
     try {
-      const { data, error } = await supabase
-        .from('community_messages')
-        .insert({ from_user_id: userId, to_user_id: chatWith.user_id, body })
-        .select('id, from_user_id, body, created_at')
-        .single();
-
-      if (error) {
-        setMsgError('No se pudo enviar. Ejecuta el SQL de mensajería en Supabase.');
+      const res = await apiPost('send_message', {
+        from_user_id: userId,
+        to_user_id:   chatWith.user_id,
+        body,
+      });
+      if (!res.ok) {
+        setMsgError(res.error || 'Error al enviar.');
         setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
-      } else if (data) {
-        setMessages(prev => prev.map(m => m.id === tempMsg.id ? (data as ChatMessage) : m));
+      } else if (res.message) {
+        setMessages(prev => prev.map(m => m.id === tempMsg.id ? (res.message as ChatMessage) : m));
       }
     } catch {
       setMsgError('Error al enviar mensaje.');
