@@ -66,13 +66,14 @@ export const CampusApp: React.FC<Props> = ({
       .channel(`campus-inbox-${user.id}`)
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'community_messages',
-        filter: `to_user_id=eq.${user.id}`,
       }, (payload) => {
+        // filter client-side — server-side filter requires REPLICA IDENTITY FULL
+        if ((payload.new as any)?.to_user_id !== user.id) return;
         setUnreadMsgs(n => n + 1);
         if ('Notification' in window && Notification.permission === 'granted') {
-          const body = (payload.new as any)?.body ?? '';
+          const msgBody = (payload.new as any)?.body ?? '';
           new Notification('Nuevo mensaje en Campus CVJOB', {
-            body: body.length > 80 ? body.slice(0, 80) + '…' : body,
+            body: msgBody.length > 80 ? msgBody.slice(0, 80) + '…' : msgBody,
             icon: '/favicon.ico',
           });
         }

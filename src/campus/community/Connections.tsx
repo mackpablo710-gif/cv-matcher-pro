@@ -87,8 +87,9 @@ export const Connections: React.FC<Props> = ({ userId, universityId, campusRole,
         event:  'INSERT',
         schema: 'public',
         table:  'community_messages',
-        filter: `to_user_id=eq.${userId}`,
       }, (payload) => {
+        // filter client-side — server-side filter requires REPLICA IDENTITY FULL
+        if ((payload.new as any)?.to_user_id !== userId) return;
         const msg = payload.new as ChatMessage;
 
         if (chatWithRef.current?.user_id === msg.from_user_id) {
