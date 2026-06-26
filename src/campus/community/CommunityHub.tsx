@@ -40,25 +40,26 @@ const EMPTY_SETUP = {
 };
 
 interface Props {
-  userId:       string;
-  profile:      any;
-  universityId: string | null;
-  campusRole:   'student' | 'coordinator' | 'admin';
+  userId:          string;
+  profile:         any;
+  universityId:    string | null;
+  campusRole:      'student' | 'coordinator' | 'admin';
+  unreadMsgCount?: number;
+  onClearUnread?:  () => void;
 }
 
 // ── localStorage cache key — prevents repeated join form when RLS blocks SELECT ─
 const profileCacheKey = (uid: string) => `cvjob_comm_profile_${uid}`;
 
 export const CommunityHub: React.FC<Props> = ({
-  userId, profile, universityId, campusRole,
+  userId, profile, universityId, campusRole, unreadMsgCount = 0, onClearUnread,
 }) => {
-  const [commProfile,    setCommProfile]    = useState<CommunityProfile | null | undefined>(undefined);
-  const [tab,            setTab]            = useState<CommTab>('feed');
-  const [editMode,       setEditMode]       = useState(false);
-  const [form,           setForm]           = useState({ ...EMPTY_SETUP });
-  const [saving,         setSaving]         = useState(false);
-  const [saveError,      setSaveError]      = useState('');
-  const [unreadMsgCount, setUnreadMsgCount] = useState(0);
+  const [commProfile, setCommProfile] = useState<CommunityProfile | null | undefined>(undefined);
+  const [tab,         setTab]         = useState<CommTab>('feed');
+  const [editMode,    setEditMode]    = useState(false);
+  const [form,        setForm]        = useState({ ...EMPTY_SETUP });
+  const [saving,      setSaving]      = useState(false);
+  const [saveError,   setSaveError]   = useState('');
 
   useEffect(() => { loadProfile(); }, [userId]);
 
@@ -371,7 +372,8 @@ export const CommunityHub: React.FC<Props> = ({
       {/* Sub-tabs */}
       <div className="flex gap-1 bg-zinc-100 rounded-xl p-1">
         {commTabs.map(t => (
-          <button key={t.id} onClick={() => { setTab(t.id); if (t.id === 'connections') setUnreadMsgCount(0); }}
+          <button key={t.id}
+            onClick={() => { setTab(t.id); if (t.id === 'connections') onClearUnread?.(); }}
             className={cn(
               'flex items-center gap-1.5 flex-1 justify-center py-2 text-sm font-bold rounded-lg transition-all relative',
               tab === t.id ? 'bg-white text-zinc-900 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'
@@ -402,7 +404,6 @@ export const CommunityHub: React.FC<Props> = ({
           universityId={universityId}
           myProfile={commProfile}
           campusRole={campusRole}
-          onUnreadCountChange={setUnreadMsgCount}
         />
       )}
       {tab === 'startups' && (

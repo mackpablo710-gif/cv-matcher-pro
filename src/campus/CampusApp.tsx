@@ -49,11 +49,37 @@ export const CampusApp: React.FC<Props> = ({
   // Background photo: computed from Supabase Storage (no DB column needed)
   const [campusBgUrl,  setCampusBgUrl]  = useState<string | null>(null);
   const [bgLoaded,     setBgLoaded]     = useState(false);
+  const [unreadMsgs,   setUnreadMsgs]   = useState(0);
 
   useEffect(() => {
     if (!user) { onExit(); return; }
     verifyAccess();
   }, [user]);
+
+  // ── Realtime: escucha mensajes nuevos en cualquier tab del campus ────────────
+  useEffect(() => {
+    if (!user?.id) return;
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+    const channel = supabase
+      .channel(`campus-inbox-${user.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'community_messages',
+        filter: `to_user_id=eq.${user.id}`,
+      }, (payload) => {
+        setUnreadMsgs(n => n + 1);
+        if ('Notification' in window && Notification.permission === 'granted') {
+          const body = (payload.new as any)?.body ?? '';
+          new Notification('Nuevo mensaje en Campus CVJOB', {
+            body: body.length > 80 ? body.slice(0, 80) + '…' : body,
+            icon: '/favicon.ico',
+          });
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user?.id]);
 
   const verifyAccess = async () => {
     try {
@@ -291,15 +317,21 @@ export const CampusApp: React.FC<Props> = ({
           {/* Tabs */}
           <nav className="flex items-center gap-1 flex-1 overflow-x-auto scrollbar-hide">
             {tabs.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
+              <button key={t.id}
+                onClick={() => { setTab(t.id); if (t.id === 'community') setUnreadMsgs(0); }}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all whitespace-nowrap shrink-0',
+                  'relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all whitespace-nowrap shrink-0',
                   activeTab === t.id
                     ? 'bg-white/10 text-white'
                     : 'text-slate-400 hover:bg-white/10 hover:text-white'
                 )}>
                 <t.icon className="w-4 h-4" />
                 <span className="hidden sm:block">{t.label}</span>
+                {t.id === 'community' && unreadMsgs > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 shadow">
+                    {unreadMsgs > 9 ? '9+' : unreadMsgs}
+                  </span>
+                )}
               </button>
             ))}
           </nav>
@@ -340,6 +372,8 @@ export const CampusApp: React.FC<Props> = ({
             profile={profile}
             universityId={universityId}
             campusRole={campusRole}
+            unreadMsgCount={unreadMsgs}
+            onClearUnread={() => setUnreadMsgs(0)}
           />
         )}
 
