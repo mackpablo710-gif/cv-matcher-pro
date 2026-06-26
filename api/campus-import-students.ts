@@ -40,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // ── Action: create community post (bypasses RLS using service role) ──────────
   if (body.action === 'create_post') {
-    const { user_id, university_id: uni_id, post_type, category, title, body: postBody, tags, needs, startup_stage, link_url, status } = body;
+    const { user_id, university_id: uni_id, post_type, category, title, body: postBody, tags, needs, startup_stage, link_url, image_url, contact_email, contact_phone, status } = body;
     if (!user_id || !uni_id || !title || !post_type)
       return res.status(400).json({ error: 'Missing required fields' });
 
@@ -53,14 +53,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { data, error } = await supabase.from('community_posts').insert({
       user_id, university_id: uni_id, post_type,
-      category:      post_type === 'marketplace' ? (category || null) : null,
-      title:         String(title).trim(),
-      body:          postBody ? String(postBody).trim() || null : null,
-      tags:          Array.isArray(tags)  ? tags  : [],
-      needs:         Array.isArray(needs) ? needs : [],
-      startup_stage: startup_stage || null,
-      link_url:      link_url    ? String(link_url).trim() || null : null,
-      status:        status || 'active',
+      category:       post_type === 'marketplace' ? (category || null) : null,
+      title:          String(title).trim(),
+      body:           postBody ? String(postBody).trim() || null : null,
+      tags:           Array.isArray(tags)  ? tags  : [],
+      needs:          Array.isArray(needs) ? needs : [],
+      startup_stage:  startup_stage || null,
+      link_url:       link_url      ? String(link_url).trim()      || null : null,
+      image_url:      image_url     ? String(image_url).trim()     || null : null,
+      contact_email:  contact_email ? String(contact_email).trim() || null : null,
+      contact_phone:  contact_phone ? String(contact_phone).trim() || null : null,
+      status:         status || 'active',
     }).select().single();
 
     if (error) return res.status(500).json({ error: error.message });
