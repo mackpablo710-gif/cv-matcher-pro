@@ -1,31 +1,50 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from '@google/genai';
 
-const MODELS = ['gemini-flash-latest', 'gemini-2.0-flash-lite', 'gemini-1.5-flash-8b'];
-const RACE_TIMEOUT_MS = 25000;
-
-async function raceModels(ai: GoogleGenAI, contents: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    let failures = 0;
-    for (const model of MODELS) {
-      Promise.race([
-        ai.models.generateContent({
-          model,
-          contents,
-          config: { responseMimeType: 'application/json', temperature: 0.2 },
-        }),
-        new Promise<never>((_, r) => setTimeout(() => r(new Error('timeout')), RACE_TIMEOUT_MS)),
-      ])
-        .then(r => { if (!settled && r.text) { settled = true; resolve(r.text); } })
-        .catch(() => { failures++; if (failures === MODELS.length && !settled) reject(new Error('All models failed or timed out')); });
-    }
-  });
-}
+const MODELS = ['gemini-flash-latest', 'gemini-2.0-flash-lite', 'gemini-2.0-flash'];
 
 function safeParseJSON(text: string) {
   try { return JSON.parse(text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim() || '{}'); }
-  catch { throw new Error('Respuesta de Gemini no válida.'); }
+  catch { return {}; }
+}
+
+async function callModel(ai: GoogleGenAI, model: string, contents: string, signal: AbortSignal): Promise<string> {
+  const timeoutId = setTimeout(() => {}, 0); // keep reference
+  clearTimeout(timeoutId);
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) return reject(new Error('aborted'));
+    const abort = () => reject(new Error('aborted'));
+    signal.addEventListener('abort', abort, { once: true });
+    ai.models.generateContent({
+      model,
+      contents,
+      config: { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: 600 },
+    })
+      .then(r => { signal.removeEventListener('abort', abort); if (!signal.aborted && r.text) resolve(r.text); else reject(new Error('empty')); })
+      .catch(err => { signal.removeEventListener('abort', abort); reject(err); });
+  });
+}
+
+async function raceModels(ai: GoogleGenAI, contents: string): Promise<string> {
+  const controller = new AbortController();
+  return new Promise((resolve, reject) => {
+    let failures = 0;
+    for (const model of MODELS) {
+      const p = Promise.race([
+        callModel(ai, model, contents, controller.signal),
+        new Promise<never>((_, r) => setTimeout(() => r(new Error('timeout')), 22000)),
+      ]);
+      p.then(text => {
+        if (!controller.signal.aborted) {
+          controller.abort();
+          resolve(text);
+        }
+      }).catch(() => {
+        failures++;
+        if (failures === MODELS.length) reject(new Error('All models failed'));
+      });
+    }
+  });
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -34,7 +53,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { cvText, jdText } = req.body;
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
     const text = await raceModels(ai,
-      `Analiza la coincidencia entre el CV y la Job Description.\n\nCV:\n${cvText}\n\nJob Description:\n${jdText}\n\nDevuelve SOLO un JSON válido con esta estructura exacta:\n{\n  "score": 0,\n  "job_title": "",\n  "company_name": "",\n  "summary": "",\n  "key_matches": [],\n  "key_gaps": []\n}\n\nReglas:\n1. score: número entero 0-100, sé riguroso y realista\n2. job_title: extrae el título del cargo de la Job Description (máx 60 caracteres)\n3. company_name: extrae el nombre de la empresa de la Job Description. Si no está mencionada explícitamente, devuelve string vacío ""\n4. key_matches y key_gaps: arrays de strings (máx 6 items cada uno)\n5. summary: texto breve y claro en español con tildes correctas (á,é,í,ó,ú,ñ)\n6. USA SIEMPRE tildes y caracteres especiales correctos del español\n7. No uses markdown, solo JSON`
+      `Compara el CV con la JD. Devuelve SOLO este JSON en español con tildes:
+{"score":0,"job_title":"","company_name":"","summary":"","key_matches":[],"key_gaps":[]}
+score: entero 0-100 realista. key_matches/key_gaps: máx 5 items cada uno. summary: 1-2 oraciones. Sin markdown.
+
+CV:
+${cvText}
+
+JD:
+${jdText}`
     );
     const parsed = safeParseJSON(text);
     res.json({
@@ -46,7 +73,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       key_gaps: Array.isArray(parsed?.key_gaps) ? parsed.key_gaps : [],
     });
   } catch (err: any) {
-    const msg = err?.message || '';
-    res.status(500).json({ error: msg || 'Error desconocido' });
+    res.status(500).json({ error: err?.message || 'Error desconocido' });
   }
 }

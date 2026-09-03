@@ -1,31 +1,45 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from '@google/genai';
 
-const MODELS = ['gemini-flash-latest', 'gemini-2.0-flash-lite', 'gemini-1.5-flash-8b'];
-const RACE_TIMEOUT_MS = 28000;
-
-async function raceModels(ai: GoogleGenAI, contents: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    let failures = 0;
-    for (const model of MODELS) {
-      Promise.race([
-        ai.models.generateContent({
-          model,
-          contents,
-          config: { responseMimeType: 'application/json', temperature: 0.4 },
-        }),
-        new Promise<never>((_, r) => setTimeout(() => r(new Error('timeout')), RACE_TIMEOUT_MS)),
-      ])
-        .then(r => { if (!settled && r.text) { settled = true; resolve(r.text); } })
-        .catch(() => { failures++; if (failures === MODELS.length && !settled) reject(new Error('All models failed or timed out')); });
-    }
-  });
-}
+const MODELS = ['gemini-flash-latest', 'gemini-2.0-flash-lite', 'gemini-2.0-flash'];
 
 function safeParseJSON(text: string) {
   try { return JSON.parse(text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim() || '{}'); }
-  catch { throw new Error('Respuesta de Gemini no válida.'); }
+  catch { return {}; }
+}
+
+async function callModel(ai: GoogleGenAI, model: string, contents: string, signal: AbortSignal): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) return reject(new Error('aborted'));
+    const abort = () => reject(new Error('aborted'));
+    signal.addEventListener('abort', abort, { once: true });
+    ai.models.generateContent({
+      model,
+      contents,
+      config: { responseMimeType: 'application/json', temperature: 0.4, maxOutputTokens: 1800 },
+    })
+      .then(r => { signal.removeEventListener('abort', abort); if (!signal.aborted && r.text) resolve(r.text); else reject(new Error('empty')); })
+      .catch(err => { signal.removeEventListener('abort', abort); reject(err); });
+  });
+}
+
+async function raceModels(ai: GoogleGenAI, contents: string): Promise<string> {
+  const controller = new AbortController();
+  return new Promise((resolve, reject) => {
+    let failures = 0;
+    for (const model of MODELS) {
+      const p = Promise.race([
+        callModel(ai, model, contents, controller.signal),
+        new Promise<never>((_, r) => setTimeout(() => r(new Error('timeout')), 28000)),
+      ]);
+      p.then(text => {
+        if (!controller.signal.aborted) { controller.abort(); resolve(text); }
+      }).catch(() => {
+        failures++;
+        if (failures === MODELS.length) reject(new Error('All models failed'));
+      });
+    }
+  });
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -35,7 +49,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!cvText || !jdText) return res.status(400).json({ error: 'Missing params' });
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
     const text = await raceModels(ai,
-      `Eres un experto en procesos de selección y entrevistas laborales.\n\nAnaliza la Job Description y el CV del candidato, luego genera preguntas de entrevista MUY ESPECÍFICAS al cargo y a la experiencia del candidato.\n\nCV DEL CANDIDATO:\n${cvText}\n\nJOB DESCRIPTION:\n${jdText}\n\nINSTRUCCIONES:\n- Genera exactamente 9 preguntas divididas en 3 categorías: 3 técnicas del cargo, 3 conductuales/situacionales y 3 específicas a la descripción del cargo.\n- Las preguntas técnicas deben referirse a los skills y herramientas mencionados en la JD.\n- Las conductuales deben usar el formato STAR (Situación-Tarea-Acción-Resultado) y referirse a desafíos del cargo.\n- Las preguntas específicas al cargo deben abordar responsabilidades concretas mencionadas en la JD.\n- Para cada pregunta incluye un TIP corto (1 oración) de cómo responderla bien, basado en lo que el candidato ya tiene en su CV.\n- USA siempre tildes y caracteres correctos en español (á,é,í,ó,ú,ñ).\n- NO uses markdown.\n\nResponde SOLO este JSON:\n{\n  "questions": [\n    { "tipo": "tecnica", "pregunta": "", "tip": "" },\n    { "tipo": "tecnica", "pregunta": "", "tip": "" },\n    { "tipo": "tecnica", "pregunta": "", "tip": "" },\n    { "tipo": "conductual", "pregunta": "", "tip": "" },\n    { "tipo": "conductual", "pregunta": "", "tip": "" },\n    { "tipo": "conductual", "pregunta": "", "tip": "" },\n    { "tipo": "cargo", "pregunta": "", "tip": "" },\n    { "tipo": "cargo", "pregunta": "", "tip": "" },\n    { "tipo": "cargo", "pregunta": "", "tip": "" }\n  ]\n}`
+      `Genera 9 preguntas de entrevista específicas. Responde SOLO JSON válido:
+{"questions":[{"tipo":"tecnica","pregunta":"","tip":""},{"tipo":"tecnica","pregunta":"","tip":""},{"tipo":"tecnica","pregunta":"","tip":""},{"tipo":"conductual","pregunta":"","tip":""},{"tipo":"conductual","pregunta":"","tip":""},{"tipo":"conductual","pregunta":"","tip":""},{"tipo":"cargo","pregunta":"","tip":""},{"tipo":"cargo","pregunta":"","tip":""},{"tipo":"cargo","pregunta":"","tip":""}]}
+3 técnicas (skills de la JD), 3 conductuales (STAR), 3 del cargo. tip: 1 oración basada en el CV. Español con tildes.
+
+CV: ${cvText}
+JD: ${jdText}`
     );
     const parsed = safeParseJSON(text);
     res.json({ questions: Array.isArray(parsed?.questions) ? parsed.questions : [] });
