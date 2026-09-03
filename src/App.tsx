@@ -2769,7 +2769,10 @@ export default function App() {
         else if (fake < 60) setLoadingMsg('Generando CV adaptado...');
         else setLoadingMsg('Aplicando mejoras finales...');
       }, 600);
-      const result = await adaptCV(cvText, jdText, language);
+      const [result, questionsResult] = await Promise.all([
+        adaptCV(cvText, jdText, language),
+        getInterviewQuestions(cvText, jdText).catch(() => ({ questions: [] })),
+      ]);
       clearInterval(timer); timer = null;
       setProgress(88); setLoadingMsg('Guardando resultado...');
       const normalized = normalizeCV(result?.cv_adaptado || result);
@@ -2790,7 +2793,7 @@ export default function App() {
       }
 
       const guardedAnalysis = result?.analisis
-        ? { ...result.analisis, match_score_adapted: guardedAdapted }
+        ? { ...result.analisis, match_score_adapted: guardedAdapted, preguntas: questionsResult?.questions || [] }
         : null;
 
       setAdaptedCV(normalized);
