@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from '@google/genai';
 
-const MODELS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash-lite'];
+const MODELS = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite'];
 
-async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 4): Promise<T> {
-  const delays = [2000, 5000, 10000, 15000];
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  const delays = [1500, 3000, 6000];
   let lastError: any;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try { return await fn(); }

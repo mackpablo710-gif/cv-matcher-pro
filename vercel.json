@@ -3,9 +3,12 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "functions": {
-    "api/create-preference.ts": { "maxDuration": 30 },
-    "api/mp-webhook.ts": { "maxDuration": 30 },
-    "api/campus-monthly-credits.ts": { "maxDuration": 60 }
+    "api/adapt-cv.ts":              { "maxDuration": 60 },
+    "api/initial-match.ts":         { "maxDuration": 30 },
+    "api/interview-questions.ts":   { "maxDuration": 30 },
+    "api/create-preference.ts":     { "maxDuration": 30 },
+    "api/mp-webhook.ts":            { "maxDuration": 30 },
+    "api/campus-monthly-credits.ts":{ "maxDuration": 60 }
   },
   "headers": [
     {
