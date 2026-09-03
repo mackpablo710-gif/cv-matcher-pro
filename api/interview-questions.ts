@@ -1,22 +1,14 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from '@google/genai';
 
-const MODELS = ['gemini-2.0-flash-lite', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+const MODELS = ['gemini-flash-latest', 'gemini-2.0-flash-lite', 'gemini-2.0-flash'];
+const MODEL_TIMEOUT_MS = 20000;
 
-async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 2): Promise<T> {
-  const delays = [1000, 2000];
-  let lastError: any;
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    try { return await fn(); }
-    catch (err: any) {
-      lastError = err;
-      const msg: string = err?.message || '';
-      const retry = msg.includes('503') || msg.includes('UNAVAILABLE') || msg.includes('high demand') || msg.includes('Please retry');
-      if (!retry || attempt === maxAttempts - 1) throw err;
-      await new Promise(r => setTimeout(r, delays[attempt]));
-    }
-  }
-  throw lastError;
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('MODEL_TIMEOUT')), ms)),
+  ]);
 }
 
 function safeParseJSON(text: string) {
@@ -35,15 +27,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     for (const model of MODELS) {
       try {
-        const r = await withRetry(() => ai.models.generateContent({
-          model,
-          contents: `Eres un experto en procesos de selección y entrevistas laborales.\n\nAnaliza la Job Description y el CV del candidato, luego genera preguntas de entrevista MUY ESPECÍFICAS al cargo y a la experiencia del candidato.\n\nCV DEL CANDIDATO:\n${cvText}\n\nJOB DESCRIPTION:\n${jdText}\n\nINSTRUCCIONES:\n- Genera exactamente 9 preguntas divididas en 3 categorías: 3 técnicas del cargo, 3 conductuales/situacionales y 3 específicas a la descripción del cargo.\n- Las preguntas técnicas deben referirse a los skills y herramientas mencionados en la JD.\n- Las conductuales deben usar el formato STAR (Situación-Tarea-Acción-Resultado) y referirse a desafíos del cargo.\n- Las preguntas específicas al cargo deben abordar responsabilidades concretas mencionadas en la JD.\n- Para cada pregunta incluye un TIP corto (1 oración) de cómo responderla bien, basado en lo que el candidato ya tiene en su CV.\n- USA siempre tildes y caracteres correctos en español (á,é,í,ó,ú,ñ).\n- NO uses markdown.\n\nResponde SOLO este JSON:\n{\n  "questions": [\n    { "tipo": "tecnica", "pregunta": "", "tip": "" },\n    { "tipo": "tecnica", "pregunta": "", "tip": "" },\n    { "tipo": "tecnica", "pregunta": "", "tip": "" },\n    { "tipo": "conductual", "pregunta": "", "tip": "" },\n    { "tipo": "conductual", "pregunta": "", "tip": "" },\n    { "tipo": "conductual", "pregunta": "", "tip": "" },\n    { "tipo": "cargo", "pregunta": "", "tip": "" },\n    { "tipo": "cargo", "pregunta": "", "tip": "" },\n    { "tipo": "cargo", "pregunta": "", "tip": "" }\n  ]\n}`,
-          config: { responseMimeType: 'application/json', temperature: 0.4 },
-        }));
+        const r = await withTimeout(
+          ai.models.generateContent({
+            model,
+            contents: `Eres un experto en procesos de selección y entrevistas laborales.\n\nAnaliza la Job Description y el CV del candidato, luego genera preguntas de entrevista MUY ESPECÍFICAS al cargo y a la experiencia del candidato.\n\nCV DEL CANDIDATO:\n${cvText}\n\nJOB DESCRIPTION:\n${jdText}\n\nINSTRUCCIONES:\n- Genera exactamente 9 preguntas divididas en 3 categorías: 3 técnicas del cargo, 3 conductuales/situacionales y 3 específicas a la descripción del cargo.\n- Las preguntas técnicas deben referirse a los skills y herramientas mencionados en la JD.\n- Las conductuales deben usar el formato STAR (Situación-Tarea-Acción-Resultado) y referirse a desafíos del cargo.\n- Las preguntas específicas al cargo deben abordar responsabilidades concretas mencionadas en la JD.\n- Para cada pregunta incluye un TIP corto (1 oración) de cómo responderla bien, basado en lo que el candidato ya tiene en su CV.\n- USA siempre tildes y caracteres correctos en español (á,é,í,ó,ú,ñ).\n- NO uses markdown.\n\nResponde SOLO este JSON:\n{\n  "questions": [\n    { "tipo": "tecnica", "pregunta": "", "tip": "" },\n    { "tipo": "tecnica", "pregunta": "", "tip": "" },\n    { "tipo": "tecnica", "pregunta": "", "tip": "" },\n    { "tipo": "conductual", "pregunta": "", "tip": "" },\n    { "tipo": "conductual", "pregunta": "", "tip": "" },\n    { "tipo": "conductual", "pregunta": "", "tip": "" },\n    { "tipo": "cargo", "pregunta": "", "tip": "" },\n    { "tipo": "cargo", "pregunta": "", "tip": "" },\n    { "tipo": "cargo", "pregunta": "", "tip": "" }\n  ]\n}`,
+            config: { responseMimeType: 'application/json', temperature: 0.4 },
+          }),
+          MODEL_TIMEOUT_MS,
+        );
         text = r.text || ''; break;
       } catch (err: any) {
         const msg = err?.message || '';
-        if (msg.includes('503') || msg.includes('UNAVAILABLE') || msg.includes('NOT_FOUND') || msg.includes('quota')) continue;
+        if (msg.includes('503') || msg.includes('UNAVAILABLE') || msg.includes('NOT_FOUND') || msg.includes('quota') || msg.includes('MODEL_TIMEOUT')) continue;
         throw err;
       }
     }
