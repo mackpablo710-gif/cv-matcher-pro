@@ -4,8 +4,8 @@
   "framework": "vite",
   "functions": {
     "api/adapt-cv.ts":              { "maxDuration": 60 },
-    "api/initial-match.ts":         { "maxDuration": 30 },
-    "api/interview-questions.ts":   { "maxDuration": 30 },
+    "api/initial-match.ts":         { "maxDuration": 60 },
+    "api/interview-questions.ts":   { "maxDuration": 60 },
     "api/create-preference.ts":     { "maxDuration": 30 },
     "api/mp-webhook.ts":            { "maxDuration": 30 },
     "api/campus-monthly-credits.ts":{ "maxDuration": 60 }
