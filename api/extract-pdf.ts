@@ -1,22 +1,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from '@google/genai';
 
-const MODELS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash-lite'];
-
-async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 4): Promise<T> {
-  const delays = [2000, 5000, 10000, 15000];
-  let lastError: any;
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    try { return await fn(); }
-    catch (err: any) {
-      lastError = err;
-      const msg: string = err?.message || '';
-      const retry = msg.includes('503') || msg.includes('UNAVAILABLE') || msg.includes('high demand') || msg.includes('Please retry');
-      if (!retry || attempt === maxAttempts - 1) throw err;
-      await new Promise(r => setTimeout(r, delays[attempt]));
-    }
+function geminiError(err: any): { status: number; message: string } {
+  const msg: string = err?.message || String(err) || '';
+  if (msg.includes('429') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) {
+    return { status: 429, message: 'Límite de uso de IA alcanzado. Por favor intenta en unos minutos.' };
   }
-  throw lastError;
+  if (msg.includes('503') || msg.includes('UNAVAILABLE')) {
+    return { status: 503, message: 'La IA está muy ocupada ahora. Por favor intenta de nuevo.' };
+  }
+  return { status: 500, message: msg || 'Error desconocido' };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -24,17 +17,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { base64Data } = req.body;
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-    const text = await withRetry(async () => {
-      const r = await ai.models.generateContent({
-        model: 'gemini-flash-latest',
-        contents: { parts: [{ inlineData: { mimeType: 'application/pdf', data: base64Data } }, { text: 'Extract all the text from this CV PDF exactly as written. Do not summarize. Return full text content.' }] },
-      });
-      return r.text || '';
+    const r = await ai.models.generateContent({
+      model: 'gemini-flash-latest',
+      contents: { parts: [
+        { inlineData: { mimeType: 'application/pdf', data: base64Data } },
+        { text: 'Extract all the text from this CV PDF exactly as written. Do not summarize. Return full text content.' },
+      ]},
     });
-    res.json({ text });
+    res.json({ text: r.text || '' });
   } catch (err: any) {
-    const msg = err?.message || '';
-    res.status(msg.includes('503') || msg.includes('UNAVAILABLE') ? 503 : 500)
-       .json({ error: msg.includes('503') || msg.includes('UNAVAILABLE') ? 'Gemini está muy ocupado. Por favor intenta en unos segundos.' : msg });
+    const { status, message } = geminiError(err);
+    res.status(status).json({ error: message });
   }
 }

@@ -1,45 +1,20 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from '@google/genai';
 
-const MODELS = ['gemini-2.0-flash', 'gemini-flash-latest', 'gemini-2.0-flash-lite'];
+function geminiError(err: any): { status: number; message: string } {
+  const msg: string = err?.message || String(err) || '';
+  if (msg.includes('429') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) {
+    return { status: 429, message: 'Límite de uso de IA alcanzado. Por favor intenta en unos minutos.' };
+  }
+  if (msg.includes('503') || msg.includes('UNAVAILABLE')) {
+    return { status: 503, message: 'La IA está muy ocupada ahora. Por favor intenta de nuevo.' };
+  }
+  return { status: 500, message: msg || 'Error desconocido' };
+}
 
 function safeParseJSON(text: string) {
   try { return JSON.parse(text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim() || '{}'); }
   catch { throw new Error('Respuesta de Gemini no válida.'); }
-}
-
-async function callModel(ai: GoogleGenAI, model: string, contents: string, signal: AbortSignal): Promise<string> {
-  return new Promise((resolve, reject) => {
-    if (signal.aborted) return reject(new Error('aborted'));
-    const abort = () => reject(new Error('aborted'));
-    signal.addEventListener('abort', abort, { once: true });
-    ai.models.generateContent({
-      model,
-      contents,
-      config: { responseMimeType: 'application/json', temperature: 0.3, maxOutputTokens: 4000 },
-    })
-      .then(r => { signal.removeEventListener('abort', abort); if (!signal.aborted && r.text) resolve(r.text); else reject(new Error('empty')); })
-      .catch(err => { signal.removeEventListener('abort', abort); reject(err); });
-  });
-}
-
-async function raceModels(ai: GoogleGenAI, contents: string): Promise<string> {
-  const controller = new AbortController();
-  return new Promise((resolve, reject) => {
-    let failures = 0;
-    for (const model of MODELS) {
-      const p = Promise.race([
-        callModel(ai, model, contents, controller.signal),
-        new Promise<never>((_, r) => setTimeout(() => r(new Error('timeout')), 50000)),
-      ]);
-      p.then(text => {
-        if (!controller.signal.aborted) { controller.abort(); resolve(text); }
-      }).catch(() => {
-        failures++;
-        if (failures === MODELS.length) reject(new Error('All models failed'));
-      });
-    }
-  });
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -47,8 +22,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { cvText, jdText, language } = req.body;
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-    const text = await raceModels(ai,
-      `Eres experto en CVs para ATS. Idioma de salida: ${language}.
+    const r = await ai.models.generateContent({
+      model: 'gemini-2.0-flash',
+      contents: `Eres experto en CVs para ATS. Idioma de salida: ${language}.
 
 REGLAS:
 - Mejora redacción con terminología exacta de la JD.
@@ -87,10 +63,12 @@ Responde SOLO este JSON:
     "missing_mandatory": [],
     "sugerencias_revision": [{"seccion":"","agregado":"","razon":""}]
   }
-}`
-    );
-    res.json(safeParseJSON(text));
+}`,
+      config: { responseMimeType: 'application/json', temperature: 0.3, maxOutputTokens: 4000 },
+    });
+    res.json(safeParseJSON(r.text || ''));
   } catch (err: any) {
-    res.status(500).json({ error: err?.message || 'Error desconocido' });
+    const { status, message } = geminiError(err);
+    res.status(status).json({ error: message });
   }
 }
