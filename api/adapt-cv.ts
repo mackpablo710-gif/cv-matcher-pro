@@ -23,7 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { cvText, jdText, language } = req.body;
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
     const r = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-flash-latest',
       contents: `Eres experto en CVs para ATS. Idioma de salida: ${language}.
 
 REGLAS:
