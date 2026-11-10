@@ -24,6 +24,7 @@
     "lucide-react": "^0.546.0",
     "mercadopago": "^2.12.0",
     "motion": "^12.23.24",
+    "openai": "^7.55.0",
     "pdf-parse": "^2.4.5",
     "pdfjs-dist": "^5.5.207",
     "pg": "^8.20.0",
