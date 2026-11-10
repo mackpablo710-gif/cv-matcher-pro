@@ -27,10 +27,10 @@ REGLAS:
 - Mejora redacción con terminología exacta de la JD.
 - Incorpora keywords donde sean HONESTAMENTE aplicables.
 - NUNCA inventes empresas, cargos, fechas, tecnologías ni certificaciones.
-- Solo añade frases a bullets si son muy evidentes (máx 2-3, van en sugerencias_revision).
+- Si agregas o expandes alguna frase en un bullet, SIEMPRE la registras en sugerencias_revision con seccion, agregado y razon. Esto es obligatorio — el usuario debe poder revisarlo.
 - Si el candidato cambia de industria: destaca habilidades transferibles en el summary.
 - Si faltan requisitos obligatorios clave: cannot_improve=true.
-- SCORE equilibrado: experiencia relevante en áreas similares = 70-85%. Solo baja de 60% si faltan requisitos obligatorios.
+- SCORE REALISTA: match_score_adapted debe ser como máximo match_score_original + 15 puntos. Un CV adaptado no puede saltar más de 15 puntos — solo mejora redacción y keywords, no inventa experiencia.
 - Texto plano, tildes correctas (á,é,í,ó,ú,ñ).
 
 CV: ${cvText}
