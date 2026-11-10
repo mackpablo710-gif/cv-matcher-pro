@@ -14,19 +14,24 @@ function geminiError(err: any): { status: number; message: string } {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).end();
-  try {
-    const { base64Data } = req.body;
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-    const r = await ai.models.generateContent({
-      model: 'gemini-flash-latest',
-      contents: { parts: [
-        { inlineData: { mimeType: 'application/pdf', data: base64Data } },
-        { text: 'Extract all the text from this CV PDF exactly as written. Do not summarize. Return full text content.' },
-      ]},
-    });
-    res.json({ text: r.text || '' });
-  } catch (err: any) {
-    const { status, message } = geminiError(err);
-    res.status(status).json({ error: message });
+  const { base64Data } = req.body;
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      if (attempt > 0) await new Promise(r => setTimeout(r, attempt * 3000));
+      const result = await ai.models.generateContent({
+        model: 'gemini-flash-latest',
+        contents: { parts: [
+          { inlineData: { mimeType: 'application/pdf', data: base64Data } },
+          { text: 'Extract all the text from this CV PDF exactly as written. Do not summarize. Return full text content.' },
+        ]},
+      });
+      return res.json({ text: result.text || '' });
+    } catch (err: any) {
+      const { status, message } = geminiError(err);
+      if (status === 503 && attempt < 2) continue;
+      return res.status(status).json({ error: message });
+    }
   }
 }
