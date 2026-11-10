@@ -1640,6 +1640,16 @@ const MatchAnalysisPanel = ({ initialMatch, analysis }: { initialMatch: any; ana
         </div>
       </div>
 
+      {/* Big jump explanation banner */}
+      {improvement >= 20 && (
+        <div className="rounded-xl bg-blue-50 border border-blue-200 px-3 py-2.5 flex items-start gap-2">
+          <span className="text-base leading-none mt-0.5">💡</span>
+          <p className="text-[11px] text-blue-700 leading-relaxed">
+            <strong>¿Por qué subió tanto?</strong> El CV tenía experiencia relevante pero sin keywords ATS ni redacción orientada al cargo. La adaptación no inventó experiencia — reescribió lo que ya existía con el lenguaje de la oferta.
+          </p>
+        </div>
+      )}
+
       {/* Summary of changes */}
       {analysis?.summary_adapted && (
         <div className="p-3 bg-zinc-50 rounded-xl">
@@ -2777,10 +2787,10 @@ export default function App() {
       setProgress(88); setLoadingMsg('Guardando resultado...');
       const normalized = normalizeCV(result?.cv_adaptado || result);
 
-      // Guardrail: adapted score must be at least initialScore + 2 and at most initialScore + 20 (capped at 92)
+      // Guardrail: adapted score must be at least initialScore + 2 and at most initialScore + 35 (capped at 95)
       const initialScore = initialMatch?.score || result?.analisis?.match_score_original || 0;
       const rawAdapted = result?.analisis?.match_score_adapted || 0;
-      const maxAdapted = Math.min(initialScore + 20, 92);
+      const maxAdapted = Math.min(initialScore + 35, 95);
       let guardedAdapted = Math.min(maxAdapted, Math.max(initialScore + 2, rawAdapted));
 
       // Anti-repeat: if user already has 2+ adaptations with this exact score, shift by 1
