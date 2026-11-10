@@ -8,7 +8,8 @@
     "api/interview-questions.ts":   { "maxDuration": 60 },
     "api/create-preference.ts":     { "maxDuration": 30 },
     "api/mp-webhook.ts":            { "maxDuration": 30 },
-    "api/campus-monthly-credits.ts":{ "maxDuration": 60 }
+    "api/campus-monthly-credits.ts":{ "maxDuration": 60 },
+    "api/extract-pdf.ts":           { "maxDuration": 60 }
   },
   "headers": [
     {
