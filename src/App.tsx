@@ -11,7 +11,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase, signInWithEmail, signUpWithEmail, signOut, signInWithGoogle, resetPasswordForEmail, updatePassword } from './lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
-import { extractPdfText, getInitialMatch, adaptCV } from './services/apiClient';
+import { extractPdfText, getInitialMatch, adaptCV, getInterviewQuestions } from './services/apiClient';
 import { jsPDF } from 'jspdf';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, Table, TableRow, TableCell, WidthType } from 'docx';
 import { clsx, type ClassValue } from 'clsx';
