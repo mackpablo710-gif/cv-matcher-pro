@@ -7,26 +7,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { base64Data } = req.body;
     const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
-    const response = await client.responses.create({
+    const r = await client.chat.completions.create({
       model: 'gpt-4o-mini',
-      input: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'input_file',
+      max_tokens: 4000,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'file',
+            file: {
+              filename: 'cv.pdf',
               file_data: `data:application/pdf;base64,${base64Data}`,
             },
-            {
-              type: 'input_text',
-              text: 'Extract all the text from this CV PDF exactly as written. Do not summarize. Return only the full text content.',
-            },
-          ],
-        },
-      ],
+          } as any,
+          {
+            type: 'text',
+            text: 'Extract all the text from this CV PDF exactly as written. Do not summarize. Return only the full text content.',
+          },
+        ],
+      }],
     });
 
-    const text = response.output_text || '';
+    const text = r.choices[0]?.message?.content || '';
     res.json({ text });
   } catch (err: any) {
     const status = err?.status || 500;
