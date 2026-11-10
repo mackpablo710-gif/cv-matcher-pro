@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { pathToFileURL } from 'url';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).end();
@@ -6,9 +7,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { base64Data } = req.body;
     const buffer = Buffer.from(base64Data, 'base64');
 
-    // pdfjs-dist: extracts text directly from PDF without AI
     const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+    const workerPath = require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href;
 
     const pdf = await pdfjsLib.getDocument({
       data: new Uint8Array(buffer),
